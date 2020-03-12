@@ -425,10 +425,12 @@ var vim3d = {
                 target: { x: 0, y: -1, z: 0, },
             },
             background: {
-                color: { r: 0x72, g: 0x64, b: 0x5b, }
+                // color: { r: 0x72, g: 0x64, b: 0x5b, }
+                // color: { r: 215, g:217, b:215 }
+                color: { r: 255, g:255, b:255 }
             },
             plane: {
-                show: true,
+                show: false,
                 material: {
                     color: { r: 0x99, g: 0x99, b: 0x99, },
                     specular: { r: 0x10, g: 0x10, b: 0x10, }
@@ -1010,17 +1012,20 @@ var vim3d = {
                     });
                     return;
                 }
-                case "g3d": {
+                // HACK: Assume g3d as default case.
+                case "g3d":
+                default:
+                {
                     var loader = new THREE.G3DLoader();
                     loader.load(fileName, function (geometry) {
                         // TODO: decide whether this is really necessary
                         geometry.computeVertexNormals();
                         loadObject(new THREE.Mesh(geometry));
-                    });
+                    }, null, console.error);
                     return;
                 }
-                default:
-                    throw new Error("Unrecognized file type extension '" + ext + "' for file " + fileName);
+                
+                // throw new Error("Unrecognized file type extension '" + ext + "' for file " + fileName);
             }
         }
         // Helper functions 
@@ -2865,6 +2870,7 @@ var GUI = function GUI(pars) {
   }
   var useLocalStorage = SUPPORTS_LOCAL_STORAGE && localStorage.getItem(getLocalStorageHash(this, 'isLocal')) === 'true';
   var saveToLocalStorage = void 0;
+  var titleRow = void 0;
   Object.defineProperties(this,
   {
     parent: {
@@ -2919,8 +2925,8 @@ var GUI = function GUI(pars) {
       },
       set: function set$$1(v) {
         params.name = v;
-        if (titleRowName) {
-          titleRowName.innerHTML = params.name;
+        if (titleRow) {
+          titleRow.innerHTML = params.name;
         }
       }
     },
@@ -2964,7 +2970,7 @@ var GUI = function GUI(pars) {
     }
   });
   if (Common.isUndefined(params.parent)) {
-    params.closed = false;
+    this.closed = params.closed || false;
     dom.addClass(this.domElement, GUI.CLASS_MAIN);
     dom.makeSelectable(this.domElement, false);
     if (SUPPORTS_LOCAL_STORAGE) {
@@ -2993,9 +2999,9 @@ var GUI = function GUI(pars) {
     if (params.closed === undefined) {
       params.closed = true;
     }
-    var _titleRowName = document.createTextNode(params.name);
-    dom.addClass(_titleRowName, 'controller-name');
-    var titleRow = addRow(_this, _titleRowName);
+    var titleRowName = document.createTextNode(params.name);
+    dom.addClass(titleRowName, 'controller-name');
+    titleRow = addRow(_this, titleRowName);
     var onClickTitle = function onClickTitle(e) {
       e.preventDefault();
       _this.closed = !_this.closed;
@@ -3151,6 +3157,12 @@ Common.extend(GUI.prototype,
   },
   close: function close() {
     this.closed = true;
+  },
+  hide: function hide() {
+    this.domElement.style.display = 'none';
+  },
+  show: function show() {
+    this.domElement.style.display = '';
   },
   onResize: function onResize() {
     var root = this.getRoot();
@@ -3342,7 +3354,7 @@ function augmentController(gui, li, controller) {
   });
   if (controller instanceof NumberControllerSlider) {
     var box = new NumberControllerBox(controller.object, controller.property, { min: controller.__min, max: controller.__max, step: controller.__step });
-    Common.each(['updateDisplay', 'onChange', 'onFinishChange', 'step'], function (method) {
+    Common.each(['updateDisplay', 'onChange', 'onFinishChange', 'step', 'min', 'max'], function (method) {
       var pc = controller[method];
       var pb = box[method];
       controller[method] = box[method] = function () {
@@ -70441,7 +70453,7 @@ THREE.MTLLoader.MaterialCreator.prototype = {
 ;/**
  * @author VIM / https://vimaec.com
  *
- * Description: A THREE.JS loader for the G3D file format. 
+ * Description: A THREE.JS loader for the G3D file format.
  *
  * Usage:
  *  var loader = new THREE.G3DLoader();
@@ -70450,7 +70462,7 @@ THREE.MTLLoader.MaterialCreator.prototype = {
  *  });
  *
  * Note:
- *  
+ *
  *  // A G3D geometry might contain colors for vertices. To set vertex colors in the material:
  *  if (geometry.hasColors) {
  *    material = new THREE.MeshPhongMaterial({ opacity: geometry.alpha, vertexColors: THREE.VertexColors });
@@ -70459,52 +70471,51 @@ THREE.MTLLoader.MaterialCreator.prototype = {
  */
 
 THREE.G3DLoader = function ( manager ) {
-	this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
+  this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
 };
 
-THREE.G3DLoader.prototype = 
-{    
-    // The G3D loader constructor 
+THREE.G3DLoader.prototype =
+{
+    // The G3D loader constructor
     constructor: THREE.G3DLoader,
-    
-    // Loads the G3D from a URL 
-    load: function ( url, onLoad, onProgress, onError ) 
+
+    // Loads the G3D from a URL
+    load: function ( url, onLoad, onProgress, onError )
     {
-		var scope = this;
-		var loader = new THREE.FileLoader( scope.manager );
-		loader.setResponseType( 'arraybuffer' );
-        loader.load( url, function ( data ) 
+        var scope = this;
+        var loader = new THREE.FileLoader( scope.manager );
+        loader.setResponseType( 'arraybuffer' );
+        loader.load( url, function ( data )
         {
-            try 
+            try
             {
-				onLoad( scope.parse( data ) );
-            } 
-            catch ( exception ) 
+                onLoad( scope.parse( data ) );
+            }
+            catch ( exception )
             {
-                console.log("Error occured when loading G3D from " + url + ", message = " + exception);
-				if ( onError ) onError( exception );				
-			}
+                console.error("Error occured when loading G3D from " + url, exception);
+                if ( onError ) onError( exception );
+            }
+        }, onProgress, onError );
+    },
 
-		}, onProgress, onError );
-	},
-
-    // BFAST is the container format for an array of binary arrays 
+    // BFAST is the container format for an array of binary arrays
     parseBFast: function ( arrayBuffer )
     {
-        // Cast the input data to 32-bit integers 
-        // Note that according to the spec they are 64 bit numbers. In JavaScript you can't have 64 bit integers, 
-        // and it would bust the amount of memory we can work with in most browsers and low-power devices  
+        // Cast the input data to 32-bit integers
+        // Note that according to the spec they are 64 bit numbers. In JavaScript you can't have 64 bit integers,
+        // and it would bust the amount of memory we can work with in most browsers and low-power devices
         var data = new Int32Array( arrayBuffer );
 
         // Parse the header
         var header = {
-            Magic:      data[0], // Either Constants.SameEndian or Constants.SwappedEndian depending on endianess of writer compared to reader. 
+            Magic:      data[0], // Either Constants.SameEndian or Constants.SwappedEndian depending on endianess of writer compared to reader.
             DataStart:  data[2], // <= file size and >= ArrayRangesEnd and >= FileHeader.ByteCount
             DataEnd:    data[4], // >= DataStart and <= file size
-            NumArrays:  data[6], // number of arrays 
+            NumArrays:  data[6], // number of arrays
         }
 
-        // Check validity of data 
+        // Check validity of data
         // TODO: check endianness
         if (header.Magic != 0xBFA5) throw new Error("Not a BFAST file, or endianness is swapped");
         if (data[1] != 0) throw new Error("Expected 0 in byte position 0");
@@ -70514,38 +70525,38 @@ THREE.G3DLoader.prototype =
         if (header.DataStart <= 32 || header.DataStart >= arrayBuffer.length) throw new Error("Data start is out of valid range");
         if (header.DataEnd < header.DataStart || header.DataEnd >= arrayBuffer.length) throw new Error("Data end is out of vaid range");
         if (header.NumArrays < 0 || header.NumArrays > header.DataEnd) throw new Error("Number of arrays is invalid");
-                
+
         // Compute each buffer
         var buffers = [];
-        var pos = 8; 
+        var pos = 8;
         for (var i=0; i < header.NumArrays; ++i) {
             var begin = data[pos+0];
-            var end = data[pos+2];            
+            var end = data[pos+2];
 
-            // Check validity of data 
+            // Check validity of data
             if (data[pos+1] != 0) throw new Error("Expected 0 in position " + (pos + 1) * 4);
             if (data[pos+3] != 0) throw new Error("Expected 0 in position " + (pos + 3) * 4);
             if (begin < header.DataStart || begin > header.DataEnd) throw new Error("Buffer start is out of range");
-            if (end < begin || end > header.DataEnd ) throw new Error("Buffer end is out of range");            
+            if (end < begin || end > header.DataEnd ) throw new Error("Buffer end is out of range");
 
-            pos += 4;      
+            pos += 4;
             var buffer = new Uint8Array(arrayBuffer, begin, end - begin);
             buffers.push(buffer);
-        }        
+        }
 
         if (buffers.length < 0)
             throw new Error("Expected at least one buffer containing the names");
 
-        // break the first one up into names          
+        // break the first one up into names
         var joinedNames = new TextDecoder("utf-8").decode(buffers[0]);
         names = joinedNames.split('\0');
 
         if (names.length != buffers.length - 1)
-            throw new Error("Expected number of names to be equal to the number of buffers - 1"); 
+            throw new Error("Expected number of names to be equal to the number of buffers - 1");
 
-        // Return the bfast structure 
+        // Return the bfast structure
         return {
-            header: header, 
+            header: header,
             names: names,
             buffers: buffers.slice(1),
         }
@@ -70561,8 +70572,8 @@ THREE.G3DLoader.prototype =
         var metaBuffer = bfast.buffers[0];
         if (bfast.names[0] != 'meta')
             throw new Error("First G3D buffer must be named 'meta', but was named: " + bfast.names[0]);
-        
-        // Extract each descriptor 
+
+        // Extract each descriptor
         var attributes = [];
         var nDescriptors = bfast.buffers.length - 1;
         for (var i=0; i < nDescriptors; ++i) {
@@ -70571,21 +70582,21 @@ THREE.G3DLoader.prototype =
                 throw new Error("Not a valid attribute descriptor, must have 6 components delimited by ':' and starting with 'g3d': " + desc);
             var attribute = {
                 name:               desc,
-                association:        desc[1], // Indicates the part of the geometry that this attribute is associated with 
-                semantic:           desc[2], // the role of the attribute 
+                association:        desc[1], // Indicates the part of the geometry that this attribute is associated with
+                semantic:           desc[2], // the role of the attribute
                 attributeTypeIndex: desc[3], // each attribute type should have it's own index ( you can have uv0, uv1, etc. )
                 dataType:           desc[4], // the type of individual values (e.g. int32, float64)
                 dataArity:          desc[5], // how many values associated with each element (e.g. UVs might be 2, geometry might be 3, quaternions 4, matrices 9 or 16)
-                rawData:            bfast.buffers[i+1], // the raw data (a UInt8Array)                
+                rawData:            bfast.buffers[i+1], // the raw data (a UInt8Array)
             }
             attribute.data = this.attributeToTypedArray(attribute);
             attributes.push(attribute);
-        }      
+        }
         return {
             attributes: attributes,
-            meta:  new TextDecoder("utf-8").decode(metaBuffer)            
+            meta:  new TextDecoder("utf-8").decode(metaBuffer)
         }
-    },    
+    },
 
     // Finds the first attribute that has the matching fields passing null matches a field to all
     findAttribute: function( g3d, assoc, semantic, index, dataType, arity ) {
@@ -70603,13 +70614,13 @@ THREE.G3DLoader.prototype =
             }
         }
         return r.length > 0 ? r[0] : null;
-    },    
+    },
 
-    // Converts a G3D attribute into a typed array from its raw data      
+    // Converts a G3D attribute into a typed array from its raw data
     attributeToTypedArray : function( attr ) {
-        if (!attr) 
+        if (!attr)
             return null;
-        
+
         // This is a UInt8 array
         var data = attr.rawData;
 
@@ -70632,20 +70643,20 @@ THREE.G3DLoader.prototype =
     },
 
     // Constructs a BufferGeometry from an ArrayBuffer arranged as a G3D
-    parse: function ( data ) 
-    {	      
+    parse: function ( data )
+    {
         console.log("Parsing data buffer into G3D");
         console.log("data size " + data.length);
 
         console.log("Parsing BFAST structure");
 
-        // A G3D follows the BFAST data arrangement, which is a collection of named byte arrays  
+        // A G3D follows the BFAST data arrangement, which is a collection of named byte arrays
         var bfast = this.parseBFast( data );
 
         console.log("found: " + bfast.buffers.length + " buffers");
         for (var i=0; i < bfast.names.length; ++i)
             console.log(bfast.names[i]);
-        
+
         console.log("Constructing G3D");
         var g3d = this.constructG3d( bfast );
 
@@ -70656,7 +70667,7 @@ THREE.G3DLoader.prototype =
         var position = this.findAttribute( g3d, null, "position", "0", "float32", "3" );
         console.log(position ? "Found position data" : "No position data found");
 
-        // Find the index buffer data attribute 
+        // Find the index buffer data attribute
         var indices = this.findAttribute( g3d, null, "index", "0", "int32", "1" );
         console.log(position ? "Found index data" : "No index data found");
 
@@ -70667,21 +70678,21 @@ THREE.G3DLoader.prototype =
         if (!position) throw new Error("Cannot create geometry without a valid vertex attribute");
         if (!indices) throw new Error("Cannot create geometry without a valid index attribute");
 
-        // Construtor the buffer geometry that is returned from the function 
+        // Construtor the buffer geometry that is returned from the function
         var geometry = new THREE.BufferGeometry();
 
-        // A vertex position data buffer 
+        // A vertex position data buffer
         this.addAttributeToGeometry( geometry, 'position', position );
 
         // Optionally add a vertex color data buffer if present
         if (colors)
             this.addAttributeToGeometry( geometry, 'color', colors );
-        
+
         // Add the index buffer (which has to be cast to a Uint32BufferAttribute)
         var typedArray = this.attributeToTypedArray( indices );
         var indexBuffer = new THREE.Uint32BufferAttribute(typedArray, 1 );
         geometry.setIndex( indexBuffer );
-                
+
         return geometry;
-	}
+  }
 };

@@ -1,0 +1,107 @@
+body
+{
+  padding: 0;
+  margin: 0;
+}
+
+.logo
+{
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  margin: 1rem;
+  background: transparent url('./img/VIM logo FULL COLOR landscape@2x.png') 0% 0% no-repeat;
+  background-size: cover;
+  width: 128px;
+  height: 48px;
+}
+
+.bdc /* bdc = bim-data-container */
+{
+  position: fixed;
+  top: 48;
+  left: 0;
+}
+
+.bdc--pane
+{
+  color: white;
+  display: grid;
+  margin: 1rem;
+  grid-template-columns: 440px;
+  grid-template-rows: auto 500px;
+  grid-template-areas:
+    "header"
+    "body";
+  box-shadow: 5px 5px 14px #00000026;
+  border-radius: 8px 8px 0px 0px;
+}
+
+.bdc--header
+{
+  grid-area: header;
+  color: white;
+  font-family: 'Roboto', sans-serif;
+  border-radius: 8px 8px 0px 0px;
+  background: transparent linear-gradient(170deg, #0590CC 0%, #8DC95B 100%) 0% 0% no-repeat padding-box;
+  padding: 25px 25px 25px 21px;
+  display: grid;
+  grid-template-columns: 90px 90px 90px 1fr;
+  grid-template-rows: auto 17px auto auto;
+  grid-template-areas:
+    "title        title       title       title"
+    ".            .           .           ."
+    "label-family label-type  label-count ."
+    "value-family value-type  value-count .";
+  align-items: baseline;
+}
+
+.bdc--title
+{
+  grid-area: title;
+  text-align: left;
+  font-size: 28px;
+  letter-spacing: -0.48px;
+  text-shadow: 1px 1px 1px #00000026;
+}
+
+.bdc--close
+{
+  grid-area: title;
+  justify-self: right;
+  font-size: 1.5rem;
+}
+
+.bdc--label
+{
+  font-size: 11px;
+  letter-spacing: -0.2px;
+  opacity: 0.4;
+  align-self: end;
+}
+
+.bdc--label__family { grid-area: label-family; }
+.bdc--label__type   { grid-area: label-type; }
+.bdc--label__count  { grid-area: label-count; }
+
+.bdc--value
+{
+  font-size: 21px;
+  letter-spacing: -0.36px;
+  text-shadow: 1px 1px 1px #00000026;
+  align-self: end;
+}
+
+.bdc--value__family { grid-area: value-family; }
+.bdc--value__type   { grid-area: value-type; }
+.bdc--value__count  { grid-area: value-count; }
+
+.bdc--body
+{
+  grid-area: body;
+  background: #FFFFFF 0% 0% no-repeat padding-box;
+  opacity: 1;
+  backdrop-filter: blur(25px); /* only works in safari apparently */
+  -webkit-backdrop-filter: blur(25px);
+}
+
