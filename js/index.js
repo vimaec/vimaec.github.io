@@ -360,21 +360,20 @@ var fragmentShader = `
     precision mediump float;
     precision mediump int;
 
-    uniform float time;
-
     varying vec3 vPosition;
     varying vec4 vColor;
 
     void main()	{
-
-        vec4 color = vec4( vColor );
-        
-        // Gives weird effect
-        //color.r += sin( vPosition.x * 10.0 + time ) * 0.5;
-
-        gl_FragColor = color;
+        gl_FragColor = vColor;
     }
 `;
+
+function fetchText(url){
+  var Httpreq = new XMLHttpRequest(); // a new request
+  Httpreq.open("GET",url,false);
+  Httpreq.send(null);
+  return Httpreq.responseText;          
+}
 
 // Main ARA code
 var vim3d = {
@@ -427,7 +426,7 @@ var vim3d = {
             background: {
                 // color: { r: 0x72, g: 0x64, b: 0x5b, }
                 // color: { r: 215, g:217, b:215 }
-                color: { r: 255, g:255, b:255 }
+                color: { r: 125, g:125, b:125 }
             },
             plane: {
                 show: false,
@@ -490,6 +489,7 @@ var vim3d = {
 
         // Initialization of scene, loading of objects, and launch animation loop
         init();
+
         loadIntoScene(settings.url, settings.mtlurl);
         animate();
         function isColor(obj) {
@@ -805,13 +805,8 @@ var vim3d = {
 
             material = new THREE.RawShaderMaterial( {
 
-                uniforms: {
-                    time: { value: 1.0 }
-                },
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
-                side: THREE.DoubleSide,
-                transparent: true
             } );
 
             // THREE JS renderer
@@ -929,7 +924,8 @@ var vim3d = {
                 console.log("Is neither a Geometry nor a BufferGeometry");
             }
         }
-        function loadObject(obj) {
+        function loadObject(callback) {
+          return (obj) => {
             objects.push(obj);
             scene.add(obj);
             console.timeEnd("Loading object");
@@ -938,8 +934,12 @@ var vim3d = {
             if (!g) g = obj;
             outputStats(g);
             g.computeBoundsTree();
+
+            if (callback)
+              callback();
+          }
         }
-        function loadIntoScene(fileName, mtlurl) {
+        function loadIntoScene(fileName, mtlurl, callback) {
             console.log("Loading object from " + fileName);
             console.time("Loading object");
             var extPos = fileName.lastIndexOf(".");
@@ -947,30 +947,27 @@ var vim3d = {
             switch (ext) {
                 case "3ds": {
                     var loader = new THREE.TDSLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "fbx": {
                     var loader = new THREE.FBXLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "dae": {
                     var loader = new THREE.ColladaLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "gltf": {
                     var loader = new THREE.GLTFLoader();
-                    loader.load(fileName, function (obj) {
-                        objects.push(obj.scene);
-                        scene.add(obj);
-                    });
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "gcode": {
                     var loader = new THREE.GCodeLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "obj": {
@@ -980,27 +977,27 @@ var vim3d = {
                         mtlLoader.load(mtlurl, function (mats) {
                             mats.preload();
                             materialsLoaded = true;
-                            objLoader_1.setMaterials(mats).load(fileName, loadObject);
+                            objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
                         }, null, function () {
                             console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
-                            objLoader_1.load(fileName, loadObject);
+                            objLoader_1.load(fileName, loadObject(callback));
                         });
                     }
                     else {
-                        objLoader_1.load(fileName, loadObject);
+                        objLoader_1.load(fileName, loadObject(callback));
                     }
                     return;
                 }
                 case "pcd": {
                     var loader = new THREE.PCDLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "ply": {
                     var loader = new THREE.PLYLoader();
                     loader.load(fileName, function (geometry) {
                         geometry.computeVertexNormals();
-                        loadObject(new THREE.Mesh(geometry));
+                        loadObject(callback)(new THREE.Mesh(geometry));
                     });
                     return;
                 }
@@ -1008,19 +1005,38 @@ var vim3d = {
                     var loader = new THREE.STLLoader();
                     loader.load(fileName, function (geometry) {
                         geometry.computeVertexNormals();
-                        loadObject(new THREE.Mesh(geometry));
+                        loadObject(callback)(new THREE.Mesh(geometry));
                     });
                     return;
+                }
+                case "json": {
+                  var str = fetchText(fileName);
+                  var jsonData = JSON.parse(str);
+                  // We have been given a list of items to load, lets load 'em
+                  var entities = Object.keys(jsonData);
+                  var index = 0;
+                  var newLoader = () => {
+                    if (index < entities.length)
+                    {
+                      entity = entities[index];
+                      index = index + 1;
+                      url = jsonData[entity];
+                      
+                      loadIntoScene(url, mtlurl);
+                      newLoader();
+                    }
+                  }
+                  newLoader();
+                  return;
                 }
                 // HACK: Assume g3d as default case.
                 case "g3d":
                 default:
                 {
                     var loader = new THREE.G3DLoader();
-                    loader.load(fileName, function (geometry) {
-                        // TODO: decide whether this is really necessary
-                        geometry.computeVertexNormals();
-                        loadObject(new THREE.Mesh(geometry));
+                    loader.load(fileName, (geometry) => {
+                      var geo = new THREE.Mesh(geometry)
+                      loadObject(callback)(geo);
                     }, null, console.error);
                     return;
                 }
