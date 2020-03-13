@@ -147,7 +147,7 @@ function bindControl(list, name, gui, onChange) {
     var pv = list.find(name);
     if (!pv)
         throw new Error("Could not find parameter " + name);
-    // Do I really need to pass a PropDesc?? 
+    // Do I really need to pass a PropDesc??
     if (pv instanceof PropValue) {
         var desc = pv._desc;
         if (desc.choices) {
@@ -196,7 +196,7 @@ function bindControl(list, name, gui, onChange) {
         return folder;
     }
 }
-// Helper functions for defining properties 
+// Helper functions for defining properties
 function prop(type, def) { return new PropDesc(type, def); }
 function boolProp(x) { return prop("boolean", x); }
 function stringProp(x) { return prop("string", x); }
@@ -347,7 +347,7 @@ var vertexShader = `
 
     uniform vec3 lightDirection;
     uniform float lightIntensity;
-    
+
     attribute vec3 position;
     attribute vec3 normal;
     attribute vec4 color;
@@ -383,7 +383,7 @@ function fetchText(url){
   var Httpreq = new XMLHttpRequest(); // a new request
   Httpreq.open("GET",url,false);
   Httpreq.send(null);
-  return Httpreq.responseText;          
+  return Httpreq.responseText;
 }
 
 // Main ARA code
@@ -395,7 +395,7 @@ vim3d.view = function (options) {
         var myUUID;
         var pubnub;
 
-        // Variables 
+        // Variables
         var avatars = {};
         var cursors = {};
         var rayCaster, intersections, cursor;
@@ -408,14 +408,14 @@ vim3d.view = function (options) {
         var objects = [];
         var throttledPublishMessage;
 
-        // Used with STL example 
+        // Used with STL example
         //const material = new THREE.MeshPhongMaterial( { color: 0xff5533, specular: 0x111111, shininess: 200 } );
         // Default options object (merged with passed options)
         var defaultOptions = {
             showStats: false,
             showGui: false,
             pubnub: false,
-            SSAO: { 
+            SSAO: {
               enable: true,
               kernelRadius: 16,
               minDistance: 0.005,
@@ -466,12 +466,12 @@ vim3d.view = function (options) {
                 scale: 0.2,
             },
             light1: {
-                // TODO: the positions of the lights are all wrong. 
+                // TODO: the positions of the lights are all wrong.
                 direction: { x: 0.3, y: -0.75, z: 0.3 },
                 color: { r: 0xFF, g: 0xFF, b: 0xFF },
                 intensity: 1.35,
             },
-            avatar: {                
+            avatar: {
                 width: 1,
                 height: 1,
                 depth: 0.2,
@@ -481,7 +481,7 @@ vim3d.view = function (options) {
                 scale: 0.01,
                 position: { x: 0, y: 0, z: 0 },
                 rotation: { x: 0, y: 0, z: 0 },
-                categories: { 
+                categories: {
 
                 },
                 material: {
@@ -494,11 +494,11 @@ vim3d.view = function (options) {
                 }
             }
         };
-            
-        // Get the raycaster extension functions from MeshBVHLib (https://github.com/gkjohnson/three-mesh-bvh) 
+
+        // Get the raycaster extension functions from MeshBVHLib (https://github.com/gkjohnson/three-mesh-bvh)
         THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
         THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
-        THREE.Mesh.prototype.raycast = acceleratedRaycast;       
+        THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
         // Initialization of scene, loading of objects, and launch animation loop
         init();
@@ -539,7 +539,7 @@ vim3d.view = function (options) {
           var value = ('light1' in settings)
             ? new toVec(settings.light1.direction)
             : new THREE.Vector3(0.5, -0.5, 0.3)
-          
+
           light1Direction.copy(value.normalize());
 
           material.uniforms.lightIntensity.value = ('light1' in settings)
@@ -561,16 +561,16 @@ vim3d.view = function (options) {
         function updateCameraControls() {
             if (!controls || controls.trackball != settings.camera.controls.trackball)
             {
-                controls = settings.camera.controls.trackball 
-                    ? new THREE.TrackballControls(camera, renderer.domElement) 
+                controls = settings.camera.controls.trackball
+                    ? new THREE.TrackballControls(camera, renderer.domElement)
                     : new THREE.OrbitControls(camera, renderer.domElement);
                 controls.trackball = settings.camera.controls.trackball;
             }
             controls.enableDamping = settings.camera.controls.enableDamping; // an animation loop is required when either damping or auto-rotation are enabled
             controls.dampingFactor = settings.camera.controls.dampingFactor;
             controls.autoRotate = settings.camera.controls.autoRotateSpeed > 0.0001 || settings.camera.controls.autoRotateSpeed< -0.0001;
-            controls.autoRotateSpeed = settings.camera.autoRotateSpeed;  
-            controls.rotateSpeed = settings.camera.controls.rotateSpeed; 
+            controls.autoRotateSpeed = settings.camera.autoRotateSpeed;
+            controls.rotateSpeed = settings.camera.controls.rotateSpeed;
             controls.enablePan = settings.camera.controls.enablePan;
             controls.panSpeed = settings.camera.controls.panSpeed;
             controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
@@ -584,14 +584,14 @@ vim3d.view = function (options) {
           {
             ssaoPass.kernelRadius = settings.SSAO.kernelRadius;
             ssaoPass.minDistance = settings.SSAO.minDistance;
-            ssaoPass.maxDistance = settings.SSAO.maxDistance;  
+            ssaoPass.maxDistance = settings.SSAO.maxDistance;
           }
         }
 
-        // Called every frame in case settings are updated 
+        // Called every frame in case settings are updated
         function updateScene() {
             scene.background = toColor(settings.background.color);
-            // TODO: do we really need fog? I think it is useless. 
+            // TODO: do we really need fog? I think it is useless.
             //scene.fog = new THREE.Fog( settings.fog.color, settings.fog.near, settings.fog.far );
             plane.visible = settings.plane.show;
             updateMaterial(plane.material, settings.plane.material);
@@ -660,7 +660,7 @@ vim3d.view = function (options) {
                 downloadLink.id = downloadLinkId;
                 downloadLink.style.display = "none";
                 document.body.appendChild(downloadLink);
-            } 
+            }
             return downloadLink;
         }
         //https://stackoverflow.com/questions/17836273/export-javascript-data-to-csv-file-without-server-interaction
@@ -671,7 +671,7 @@ vim3d.view = function (options) {
             var data = new Blob();
             downloadLink.href = window.URL.createObjectURL(data);
             downloadLink.click();
-        }        
+        }
         function loadAvatar(uuid) {
             if (uuid == myUUID)
                return;
@@ -704,7 +704,7 @@ vim3d.view = function (options) {
             if (message.uuid == myUUID)
                return;
             loadAvatar(message.uuid);
-            var avatar = avatars[message.uuid];            
+            var avatar = avatars[message.uuid];
             if (avatar && message.camera) {
                 avatar.position.set(message.camera.position.x, message.camera.position.y, message.camera.position.z);
                 avatar.rotation.set(message.camera.rotation.x, message.camera.rotation.y, message.camera.rotation.z);
@@ -717,7 +717,7 @@ vim3d.view = function (options) {
             if (!pubnub)
                 return;
             /*
-            //var newCamera = event.target.object;            
+            //var newCamera = event.target.object;
             if (camera.position.x == cameraState.position.x
             && camera.position.y == cameraState.position.y
             && camera.position.z == cameraState.position.z
@@ -734,7 +734,7 @@ vim3d.view = function (options) {
             cameraState.rotation.z = newCamera.rotation.z;
             */
             var cursor = null;
-            if (intersections.length > 0) 
+            if (intersections.length > 0)
             {
                 cursor = {
                     position: {
@@ -748,10 +748,10 @@ vim3d.view = function (options) {
             }
             // https://stackoverflow.com/questions/54433325/unhandled-promise-exception
             pubnub.publish({
-                channel: 'my_channel',                    
+                channel: 'my_channel',
                 message: {
                     uuid : myUUID,
-                    cursor : cursor, 
+                    cursor : cursor,
                     camera : {
                         position: {
                             x: camera.position.x,
@@ -766,7 +766,7 @@ vim3d.view = function (options) {
                     }
                 }
             }).catch(error => console.log(error));
-        }        
+        }
 
         function createCursorMesh( localOrRemote)
         {
@@ -788,41 +788,42 @@ vim3d.view = function (options) {
         }
 
         // Scene initialization
-        function init() 
+        function init()
         {
             // publishes PubNub message every X msec
             throttledPublishMessage = throttle(publishMessage, 200);
-        
-            // Initialize the settings 
+
+            // Initialize the settings
             settings = (new DeepMerge()).deepMerge(defaultOptions, options, undefined);
             // If a canvas is given, we will draw in it.
             var canvas = document.getElementById(settings.canvasId);
             if (!canvas) {
                 // Add to a div in the web page.
                 canvas = document.createElement('canvas');
-                document.body.appendChild(canvas);            
+                document.body.appendChild(canvas);
             }
             renderer = new THREE.WebGLRenderer({ canvas: canvas });
-            // Create the camera and size everything appropriately  
+            // Create the camera and size everything appropriately
             camera = new THREE.PerspectiveCamera();
             // Initialize the normalized moust position for ray-casting.
             mouse = new THREE.Vector2();
-         
+
             // Create scene object
             scene = new THREE.Scene();
 
             // Used for hit-testing (see https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_cubes.html)
             rayCaster = new THREE.Raycaster();
             rayCaster.firstHitOnly = true;
-            // Create a property descriptor 
+            // Create a property descriptor
             var propDesc = getOptionsDescriptor();
-            // Create a property list from the descriptor 
+            // Create a property list from the descriptor
             var props = new PropList(propDesc);
-            // Iniitlaize the property list values             
+            // Iniitlaize the property list values
             props.fromJson(options);
             if (settings.showGui) {
-                // Create a new DAT.gui controller 
-                gui = new dat.GUI();
+                // Create a new DAT.gui controller
+                gui = new dat.GUI({ autoPlace: false, closeOnTop: true, scrollable: true });
+                document.getElementById("datguicontainer").appendChild(gui.domElement);
                 // Bind the properties to the DAT.gui controller, returning the scene when it updates
                 bindControls(props, gui, function () {
                     settings = props.toJson;
@@ -834,7 +835,7 @@ vim3d.view = function (options) {
                     gui.add(obj, 'export').name("Export to G3D ... ");
                 */
             }
-            // Ground            
+            // Ground
             plane = new THREE.Mesh(new THREE.PlaneBufferGeometry(1000, 1000), new THREE.MeshPhongMaterial());
             plane.rotation.x = -Math.PI / 2;
             plane.receiveShadow = true;
@@ -846,8 +847,8 @@ vim3d.view = function (options) {
             scene.add(sunlight);
             //light1 = addShadowedLight(scene);
             //light2 = addShadowedLight(scene);
-            // Material 
-            
+            // Material
+
             //material = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
 
             material = new THREE.RawShaderMaterial( {
@@ -868,35 +869,34 @@ vim3d.view = function (options) {
             ssaoPass = new THREE.SSAOPass( scene, camera );
             ssaoPass.kernelRadius = 16;
             composer.addPass( ssaoPass );
-            
+
             // THREE JS renderer
             renderer.setPixelRatio(window.devicePixelRatio);
 
-            // Initial scene update: happens if controls change 
+            // Initial scene update: happens if controls change
             resizeCanvas(true);
             updateScene();
 
-            // Creates and updates camera controls 
+            // Creates and updates camera controls
             updateCameraControls();
 
-            // Stats display 
+            // Stats display
             if (settings.showStats) {
                 stats = new Stats();
                 document.body.appendChild(stats.dom);
             }
-            
+
             // Add a mouse move listener
             document.addEventListener( 'mousemove', onDocumentMouseMove, false );
 
             // Add a resize event listener
-            // TODO: do this when in full window mode. Right now the attempt was to get this all to work in a <canvas> element
-            //window.addEventListener( 'resize', onWindowResize, false );
-            
+            window.addEventListener( 'resize', onWindowResize, false );
+
             // Initial set-up of the camera
             initCamera();
 
             // Set-up pubnub
-            if (settings.pubnub) 
+            if (settings.pubnub)
             {
                 myUUID = PubNub.generateUUID();
                 pubnub = new PubNub({
@@ -928,6 +928,8 @@ vim3d.view = function (options) {
             vim3d.settings = settings;
             vim3d.renderer = renderer;
             vim3d.objects = objects;
+            vim3d.getEventMouseCoordinates = getEventMouseCoordinates;
+            vim3d.getRayCastIntersections = getRayCastIntersections;
         }
 
         function loadFromSettings(url, mtlurl)
@@ -951,21 +953,45 @@ vim3d.view = function (options) {
             loadIntoScene(url, mtlurl, () => {
               console.timeEnd("Loading: " + url)
               console.log("\n --- Completed Load --- \n")
-            });  
+            });
           }
         }
 
         // Use this when in full frame mode.
         function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            var rect = renderer.domElement.getBoundingClientRect();
+            camera.aspect = rect.width / rect.height;
             camera.updateProjectionMatrix();
-            renderer.setSize( window.innerWidth, window.innerHeight );
         }
 
-        function onDocumentMouseMove( event ) {
+        function getEventMouseCoordinates(event) {
+            
+            let clientX = event.clientX;
+            let clientY = event.clientY;
+            if (event.changedTouches && event.changedTouches.length > 0) {
+                clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
+            }
+
+            var rect = renderer.domElement.getBoundingClientRect();
+            return new THREE.Vector2(
+                ((clientX - rect.left) / rect.width) * 2 - 1,
+                - ((clientY - rect.top) / rect.height) * 2 + 1
+            );
+        }
+
+        function onDocumentMouseMove(event) {
             event.preventDefault();
-            mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-            mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+            const mouseCoords = getEventMouseCoordinates(event);
+            mouse.x = mouseCoords.x;
+            mouse.y = mouseCoords.y;
+        }
+
+        function getRayCastIntersections(coords) {
+            rayCaster.setFromCamera(coords, camera);
+            // Only count intersections against visible objects
+            // see: https://threejs.org/docs/#api/en/core/Raycaster.intersectObject
+            return rayCaster.intersectObjects(objects).filter(i => i.object.visible == true);
         }
 
         function resizeCanvas(force) {
@@ -1108,7 +1134,7 @@ vim3d.view = function (options) {
                   entities.forEach((entity, index) => {
                     var url = jsonData[entity]
                     console.time("Loading: " + entity);
-           
+
                     loadIntoScene(url, mtlurl, () => {
                       // Thank goodness there is no threading in JS :-)
                       console.timeEnd("Loading: " + entity);
@@ -1140,11 +1166,11 @@ vim3d.view = function (options) {
                     }, null, console.error);
                     return;
                 }
-                
+
                 // throw new Error("Unrecognized file type extension '" + ext + "' for file " + fileName);
             }
         }
-        // Helper functions 
+        // Helper functions
         function toVec(obj) {
             return new THREE.Vector3(obj.x, obj.y, obj.z);
         }
@@ -1154,7 +1180,7 @@ vim3d.view = function (options) {
         function addShadowedLight(scene) {
             var dirLight = new THREE.DirectionalLight();
             scene.add(dirLight);
-            /*  
+            /*
             dirLight.castShadow = true;
             var d = 10;
             dirLight.shadow.camera.left = -d;
@@ -1178,7 +1204,7 @@ vim3d.view = function (options) {
             ev.preventDefault();
         }
         function droppedFile(file) {
-            // TODO: deal with other data ... 
+            // TODO: deal with other data ...
             var fileName = file.name;
             loadIntoScene("../data/" + fileName, null);
         }
@@ -1215,36 +1241,36 @@ vim3d.view = function (options) {
                 ev.dataTransfer.clearData();
             }
         }
-        // Calls render, and asks the framework to prepare the next frame 
+        // Calls render, and asks the framework to prepare the next frame
         function animate() {
             requestAnimationFrame(animate);
             render();
             if (stats)
                 stats.update();
-        }   
-        function rayCastTest() {
+        }
+
+        function updateCursor() {
             // If not showing cursor skip ray cast altogether. But make sure cursor is really not visible.
             if (!settings.cursor.show) {
                 cursor.visible = false;
-                return; 
+                return;
             }
-            rayCaster.setFromCamera(mouse, camera);
-            // Only count intersections against visible objects
-            intersections = rayCaster.intersectObjects(objects).filter(i => i.object.visible == true);
+
+            intersections = getRayCastIntersections(mouse);
             if (intersections.length > 0)
             {
+                const { point } = intersections[0];
                 cursor.visible = settings.cursor.show;
-                const point = intersections[0].point;
-                cursor.position.set(point.x, point.y, point.z); 
+                cursor.position.set(point.x, point.y, point.z);
             }
             else
             {
                 cursor.visible = false;
             }
-        }    
-    
-        // Updates scene objects, and draws the scene 
-        // TODO: update the camera 
+        }
+
+        // Updates scene objects, and draws the scene
+        // TODO: update the camera
         function render() {
             resizeCanvas();
             updateObjects();
@@ -1252,7 +1278,7 @@ vim3d.view = function (options) {
             updateCameraControls();
             updateSSAO();
             controls.update();
-            rayCastTest();
+            updateCursor();
             throttledPublishMessage();
 
             if (settings.SSAO.enable)
@@ -1266,21 +1292,21 @@ vim3d.view = function (options) {
     };
 
 vim3d.isolate = function(name) {
-    for (var obj of vim3d.objects)         
+    for (var obj of vim3d.objects)
         if (obj.name == name)
             obj.visible = true;
-        else 
+        else
             obj.visible = false;
 }
 
 vim3d.setVis = function(name, vis) {
-    for (var obj of vim3d.objects)         
+    for (var obj of vim3d.objects)
         if (obj.name == name)
             obj.visible = vis;
 }
 
 vim3d.setVisAll = function(vis) {
-    for (var obj of vim3d.objects) 
+    for (var obj of vim3d.objects)
         obj.visible = vis;
 }
 
