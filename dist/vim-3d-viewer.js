@@ -941,7 +941,7 @@ var vim3d = {
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            outputStats(g);
+            //outputStats(g);
             g.computeBoundsTree();
         }
         function loadIntoScene(fileName, mtlurl) {
