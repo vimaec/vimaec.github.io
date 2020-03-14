@@ -941,8 +941,9 @@ var vim3d = {
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            outputStats(g);
+            //outputStats(g);
             g.computeBoundsTree();
+            updateObjects();
         }
         function loadIntoScene(fileName, mtlurl) {
             console.log("Loading object from " + fileName);
@@ -1144,7 +1145,6 @@ var vim3d = {
             controls.update();
             rayCastTest();
             throttledPublishMessage();
-            //publishMessage();
             renderer.render(scene, camera);
         }
     }
