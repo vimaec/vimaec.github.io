@@ -220,7 +220,7 @@ THREE.G3DLoader.prototype =
         console.log(position ? "Found index data" : "No index data found");
 
         // Find the color attribute
-        var colors = this.findAttribute( g3d, null, "color", "0", "float32", "4" );
+        var colors = this.findAttribute( g3d, null, "color", "0", "int8", "4" );
         console.log(position ? "Found color data" : "No color data found");
 
         if (!position) throw new Error("Cannot create geometry without a valid vertex attribute");

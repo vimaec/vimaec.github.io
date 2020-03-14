@@ -342,10 +342,10 @@ var vertexShader = `
     uniform mat4 projectionMatrix; // optional
 
     attribute vec3 position;
-    attribute vec4 color;
+    attribute float color;
 
     varying vec3 vPosition;
-    varying vec4 vColor;
+    varying float vColor;
 
     void main()	{
 
@@ -363,11 +363,20 @@ var fragmentShader = `
     uniform float time;
 
     varying vec3 vPosition;
-    varying vec4 vColor;
+    varying float vColor;
+
+    vec4 toColor(float r, float g, float b, float a) {
+        return vec4(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
+    }
 
     void main()	{
+        int bits = floatBitsToInt(vColor);
+        int r = (bits >> 24) | 0xFF;
+        int g = (bits >> 16) | 0xFF;
+        int b = (bits >> 8) | 0xFF;
+        int a = (bits) | 0xFF;    
 
-        vec4 color = vec4( vColor );
+        vec4 color = toColor(r, g, b,a);
         
         // Gives weird effect
         //color.r += sin( vPosition.x * 10.0 + time ) * 0.5;
@@ -70672,7 +70681,7 @@ THREE.G3DLoader.prototype =
         console.log(position ? "Found index data" : "No index data found");
 
         // Find the color attribute
-        var colors = this.findAttribute( g3d, null, "color", "0", "float32", "4" );
+        var colors = this.findAttribute( g3d, null, "color", "0", "int8", "4" );
         console.log(position ? "Found color data" : "No color data found");
 
         if (!position) throw new Error("Cannot create geometry without a valid vertex attribute");
