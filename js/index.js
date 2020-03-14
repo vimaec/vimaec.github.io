@@ -334,57 +334,42 @@ function throttle(func, wait, options) {
 
 // END: Deepmerge
 
-var vertexShader = `
+var vertexShader = `#version 300 es
     precision mediump float;
     precision mediump int;
 
     uniform mat4 modelViewMatrix; // optional
     uniform mat4 projectionMatrix; // optional
 
-    attribute vec3 position;
-    attribute vec4 color;
+    in vec3 position;
+    in vec4 color;
 
-    varying vec3 vPosition;
-    varying vec4 vColor;
+    out vec3 vPosition;
+    out vec4 vColor;
 
     void main()	{
-
         vPosition = position;
         vColor = color;
-
         gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
     }
 `;
 
-var fragmentShader = `
+var fragmentShader = `#version 300 es
     precision mediump float;
     precision mediump int;
 
-    uniform float time;
+    in vec4 vColor;
 
-    varying vec3 vPosition;
-    varying vec4 vColor;
+    out vec4 fragmentColor;
 
     void main()	{
-
-        vec4 color = vec4( vColor );
-        
-        // Gives weird effect
-        //color.r += sin( vPosition.x * 10.0 + time ) * 0.5;
-
-        gl_FragColor = color;
+        fragmentColor = vColor / 255.0;
     }
 `;
 
 // Main ARA code
 var vim3d = {
     view: function (options) {
-        // Check WebGL presence
-        if (!Detector.webgl) {
-            Detector.addGetWebGLMessage();
-            return;
-        }       
-
         // Pubnub initialization code
         var myUUID;
         var pubnub;
@@ -407,22 +392,28 @@ var vim3d = {
             showStats: false,
             showGui: false,
             pubnub: false,
+            loader: {
+                computeVertexNormals: false,
+            },
             camera: {
                 near: 0.1,
                 far: 15000,
                 fov: 50,
                 zoom: 1,
-                enableDamping: false,
-                dampingFactor: 0.05,
-                autoRotateSpeed: 0,
-                rotateSpeed: 1.0,
-                enablePan: true,
-	            panSpeed: 1.0,
-	            screenSpacePanning: false,
-                pixelPerKeyPress: 7.0,
-                zoomSpeed: 1.0,
                 position: { x: 0, y: 5, z: -5 },
                 target: { x: 0, y: -1, z: 0, },
+                controls: {
+                    trackball: false,
+                    enableDamping: false,
+                    dampingFactor: 0.05,
+                    autoRotateSpeed: 0,
+                    rotateSpeed: 1.0,
+                    enablePan: true,
+                    panSpeed: 1.0,
+                    screenSpacePanning: true,
+                    pixelPerKeyPress: 7.0,
+                    zoomSpeed: 1.0,
+                }
             },
             background: {
                 // color: { r: 0x72, g: 0x64, b: 0x5b, }
@@ -490,7 +481,13 @@ var vim3d = {
 
         // Initialization of scene, loading of objects, and launch animation loop
         init();
-        loadIntoScene(settings.url, settings.mtlurl);
+        if (Array.isArray(settings.url)) {
+            for (var url of settings.url)
+                loadIntoScene(url);
+        }
+        else {
+            loadIntoScene(settings.url, settings.mtlurl);
+        }
         animate();
         function isColor(obj) {
             return typeof (obj) === 'object' && 'r' in obj && 'g' in obj && 'b' in obj;
@@ -532,16 +529,24 @@ var vim3d = {
             camera.far = settings.camera.far;
         }
         function updateCameraControls() {
-            controls.enableDamping = settings.camera.enableDamping; // an animation loop is required when either damping or auto-rotation are enabled
-            controls.dampingFactor = settings.camera.dampingFactor;
-            controls.autoRotate = settings.camera.autoRotateSpeed > 0.0001 || settings.camera.autoRotateSpeed< -0.0001;
+            if (!controls || controls.trackball != settings.camera.controls.trackball)
+            {
+                controls = settings.camera.controls.trackball 
+                    ? new THREE.TrackballControls(camera, renderer.domElement) 
+                    : new THREE.OrbitControls(camera, renderer.domElement);
+                controls.trackball = settings.camera.controls.trackball;
+            }
+            controls.enableDamping = settings.camera.controls.enableDamping; // an animation loop is required when either damping or auto-rotation are enabled
+            controls.dampingFactor = settings.camera.controls.dampingFactor;
+            controls.autoRotate = settings.camera.controls.autoRotateSpeed > 0.0001 || settings.camera.controls.autoRotateSpeed< -0.0001;
             controls.autoRotateSpeed = settings.camera.autoRotateSpeed;  
-            controls.rotateSpeed = settings.camera.rotateSpeed; 
-            controls.enablePan = settings.camera.enablePan;
-            controls.panSpeed = settings.camera.panSpeed;
-            controls.screenSpacePanning = settings.camera.screenSpacePanning;
-            controls.keySpanSpeed = settings.camera.pixelPerKeyPress;
-            controls.zoomSpeed = settings.camera.zoomSpeed;
+            controls.rotateSpeed = settings.camera.controls.rotateSpeed; 
+            controls.enablePan = settings.camera.controls.enablePan;
+            controls.panSpeed = settings.camera.controls.panSpeed;
+            controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
+            controls.keySpanSpeed = settings.camera.controls.pixelPerKeyPress;
+            controls.zoomSpeed = settings.camera.controls.zoomSpeed;
+            controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
         }
         // Called every frame in case settings are updated 
         function updateScene() {
@@ -563,8 +568,8 @@ var vim3d = {
         }
         function updateObjects() {
             for (var child of objects) {
-                child.castShadow = true;
-                child.receiveShadow = true;
+                //child.castShadow = true;
+                //child.receiveShadow = true;
                 var scale = scalarToVec(settings.object.scale);
                 child.scale.copy(scale);
                 if (!materialsLoaded) {
@@ -753,9 +758,11 @@ var vim3d = {
             if (!canvas) {
                 // Add to a div in the web page.
                 canvas = document.createElement('canvas');
-                document.body.appendChild(canvas);
+                document.body.appendChild(canvas);            
             }
-            renderer = new THREE.WebGLRenderer({ antialias: true, canvas: canvas });
+            var context = canvas.getContext( 'webgl2', { alpha: true } );
+            // TODO: consider turning of antialiasing    
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, context: context });
             // Create the camera and size everything appropriately  
             camera = new THREE.PerspectiveCamera();
             // Initialize the normalized moust position for ray-casting.
@@ -804,7 +811,6 @@ var vim3d = {
             //material = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
 
             material = new THREE.RawShaderMaterial( {
-
                 uniforms: {
                     time: { value: 1.0 }
                 },
@@ -822,8 +828,7 @@ var vim3d = {
             // Initial scene update: happens if controls change 
             updateScene();
 
-            // Create orbit controls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            // Creates and updates camera controls 
             updateCameraControls();
 
             // Stats display 
@@ -999,7 +1004,8 @@ var vim3d = {
                 case "ply": {
                     var loader = new THREE.PLYLoader();
                     loader.load(fileName, function (geometry) {
-                        geometry.computeVertexNormals();
+                        if (settings.loader.computeVertexNormals)
+                            geometry.computeVertexNormals();
                         loadObject(new THREE.Mesh(geometry));
                     });
                     return;
@@ -1007,7 +1013,8 @@ var vim3d = {
                 case "stl": {
                     var loader = new THREE.STLLoader();
                     loader.load(fileName, function (geometry) {
-                        geometry.computeVertexNormals();
+                        if (settings.loader.computeVertexNormals)
+                            geometry.computeVertexNormals();
                         loadObject(new THREE.Mesh(geometry));
                     });
                     return;
@@ -1018,8 +1025,8 @@ var vim3d = {
                 {
                     var loader = new THREE.G3DLoader();
                     loader.load(fileName, function (geometry) {
-                        // TODO: decide whether this is really necessary
-                        geometry.computeVertexNormals();
+                        if (settings.loader.computeVertexNormals)
+                            geometry.computeVertexNormals();
                         loadObject(new THREE.Mesh(geometry));
                     }, null, console.error);
                     return;

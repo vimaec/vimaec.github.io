@@ -16,7 +16,47 @@
   <script>
       vim3d.view(
           { 
-              url: './models/Wolford_Residence_2019.g3d',
+              url: [
+                 
+'./models/category_test/Cable Tray Fittings.g3d',
+'./models/category_test/Cable Trays.g3d',
+'./models/category_test/Casework.g3d',
+'./models/category_test/Ceilings.g3d',
+'./models/category_test/Columns.g3d',
+'./models/category_test/Communication Devices.g3d',
+'./models/category_test/Conduit Fittings.g3d',
+'./models/category_test/Conduits.g3d',
+'./models/category_test/Curtain Panels.g3d',
+'./models/category_test/Curtain Wall Mullions.g3d',
+'./models/category_test/Data Devices.g3d',
+'./models/category_test/Doors.g3d',
+'./models/category_test/Electrical Equipment.g3d',
+'./models/category_test/Electrical Fixtures.g3d',
+'./models/category_test/Fire Alarm Devices.g3d',
+'./models/category_test/Floors.g3d',
+'./models/category_test/Furniture.g3d',
+'./models/category_test/Generic Models.g3d',
+'./models/category_test/Lighting Devices.g3d',
+'./models/category_test/Lighting Fixtures.g3d',
+'./models/category_test/Mechanical Equipment.g3d',
+'./models/category_test/Parking.g3d',
+'./models/category_test/Pipe Fittings.g3d',
+'./models/category_test/Plumbing Fixtures.g3d',
+'./models/category_test/Railings.g3d',
+'./models/category_test/Ramps.g3d',
+'./models/category_test/Roofs.g3d',
+'./models/category_test/Site.g3d',
+'./models/category_test/Specialty Equipment.g3d',
+'./models/category_test/Stairs.g3d',
+'./models/category_test/Structural Columns.g3d',
+'./models/category_test/Structural Foundations.g3d',
+'./models/category_test/Structural Framing.g3d',
+'./models/category_test/Telephone Devices.g3d',
+'./models/category_test/Walls.g3d',
+'./models/category_test/Windows.g3d',
+'./models/category_test/_default_.g3d',
+
+                ],
               pubnub: false,
               object: { 
                   scale: 0.1, 
@@ -25,11 +65,12 @@
               }, 
               camera: { 
                   position: { x: -10, y: 5, z: -10 }, 
-                  panSpeed: 1.0,
-                screenSpacePanning: false,
-                  pixelPerKeyPress: 7.0,
-                  zoomSpeed: 1.0,
-                  rotateSpeed: 1.0,
+                  controls: {
+                    panSpeed: 1.0,
+                    pixelPerKeyPress: 7.0,
+                    zoomSpeed: 1.0,
+                    rotateSpeed: 1.0,
+                },
               }, 
               showStats: true,
               showGui: true, 
@@ -42,9 +83,12 @@
               light2: {
                   intensity: 0.5,
               },
+              background: {
+                  color: { r: 0x00, g: 0x00, b: 0x33 }
+              }
           });
   </script>
   <div class="logo"/>
   <div id="bim-data-container" class="bdc"></div>
-  <script src="./js/bim-data-pane.jsx" type="text/babel"></script>
+<!-- <script src="./js/bim-data-pane.jsx" type="text/babel"></script> -->
 </html>
