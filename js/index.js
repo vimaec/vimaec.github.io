@@ -755,7 +755,8 @@ var vim3d = {
                 canvas = document.createElement('canvas');
                 document.body.appendChild(canvas);
             }
-            renderer = new THREE.WebGLRenderer({ antialias: true, canvas: canvas });
+            var context = canvas.getContext( 'webgl2', { alpha: false } );
+            renderer = new THREE.WebGLRenderer({ antialias: true, canvas, context });
             // Create the camera and size everything appropriately  
             camera = new THREE.PerspectiveCamera();
             // Initialize the normalized moust position for ray-casting.
