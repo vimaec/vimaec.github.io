@@ -66,10 +66,10 @@ THREE.G3DLoader.prototype =
         // Check validity of data
         // TODO: check endianness
         if (header.Magic != 0xBFA5) throw new Error("Not a BFAST file, or endianness is swapped");
-        if (data[1] != 0) throw new Error("Expected 0 in byte position 0");
-        if (data[3] != 0) throw new Error("Expected 0 in byte position 8");
-        if (data[5] != 0) throw new Error("Expected 0 in position 16");
-        if (data[7] != 0) throw new Error("Expected 0 in position 24");
+        if (data[1] !== 0) throw new Error("Expected 0 in byte position 0");
+        if (data[3] !== 0) throw new Error("Expected 0 in byte position 8");
+        if (data[5] !== 0) throw new Error("Expected 0 in position 16");
+        if (data[7] !== 0) throw new Error("Expected 0 in position 24");
         if (header.DataStart <= 32 || header.DataStart >= arrayBuffer.length) throw new Error("Data start is out of valid range");
         if (header.DataEnd < header.DataStart || header.DataEnd >= arrayBuffer.length) throw new Error("Data end is out of vaid range");
         if (header.NumArrays < 0 || header.NumArrays > header.DataEnd) throw new Error("Number of arrays is invalid");
@@ -82,8 +82,8 @@ THREE.G3DLoader.prototype =
             var end = data[pos+2];
 
             // Check validity of data
-            if (data[pos+1] != 0) throw new Error("Expected 0 in position " + (pos + 1) * 4);
-            if (data[pos+3] != 0) throw new Error("Expected 0 in position " + (pos + 3) * 4);
+            if (data[pos+1] !== 0) throw new Error("Expected 0 in position " + (pos + 1) * 4);
+            if (data[pos+3] !== 0) throw new Error("Expected 0 in position " + (pos + 3) * 4);
             if (begin < header.DataStart || begin > header.DataEnd) throw new Error("Buffer start is out of range");
             if (end < begin || end > header.DataEnd ) throw new Error("Buffer end is out of range");
 
@@ -99,7 +99,7 @@ THREE.G3DLoader.prototype =
         var joinedNames = new TextDecoder("utf-8").decode(buffers[0]);
         names = joinedNames.split('\0');
 
-        if (names.length != buffers.length - 1)
+        if (names.length !== buffers.length - 1)
             throw new Error("Expected number of names to be equal to the number of buffers - 1");
 
         // Return the bfast structure
@@ -126,7 +126,7 @@ THREE.G3DLoader.prototype =
         var nDescriptors = bfast.buffers.length - 1;
         for (var i=0; i < nDescriptors; ++i) {
             var desc = bfast.names[i+1].split(':');
-            if (desc[0] != 'g3d' || desc.length != '6')
+            if (desc[0] != 'g3d' || desc.length !== 6)
                 throw new Error("Not a valid attribute descriptor, must have 6 components delimited by ':' and starting with 'g3d': " + desc);
             var attribute = {
                 name:               desc,

@@ -127,7 +127,7 @@ var PropList = /** @class */ (function () {
         configurable: true
     });
     PropList.prototype.find = function (name) {
-        return this.items.find(function (v) { return v.name === name; });
+        return this.items.find((v) => v.name === name );
     };
     return PropList;
 }());
@@ -326,6 +326,7 @@ function throttle(func, wait, options) {
         result = func.apply(context, args);
         if (!timeout) context = args = null;
       } else if (!timeout && options.trailing !== false) {
+        // deepcode ignore UseArrowFunction: <please specify a reason of ignoring this>
         timeout = setTimeout(later, remaining);
       }
       return result;
@@ -376,10 +377,10 @@ function fetchText(url){
 var vim3d = {
     view: function (options) {
         // Check WebGL presence
-        if (!Detector.webgl) {
-            Detector.addGetWebGLMessage();
-            return;
-        }       
+        // if (!Detector.webgl) {
+        //     Detector.addGetWebGLMessage();
+        //     return;
+        // }       
 
         // Pubnub initialization code
         var myUUID;
@@ -493,7 +494,16 @@ var vim3d = {
         // Initialization of scene, loading of objects, and launch animation loop
         init();
 
-        loadIntoScene(settings.url, settings.mtlurl);
+        if (Array.isArray(settings.url))
+        {
+          settings.url.forEach((url) => {
+            loadIntoScene(url, settings.mtlurl);
+          })
+        }
+        else {
+          console.time("Loading: " + settings.url);
+          loadIntoScene(settings.url, settings.mtlurl, () => console.timeEnd("Loading: " + settings.url));  
+        }
         animate();
         function isColor(obj) {
             return typeof (obj) === 'object' && 'r' in obj && 'g' in obj && 'b' in obj;
@@ -942,7 +952,6 @@ var vim3d = {
           return (obj) => {
             objects.push(obj);
             scene.add(obj);
-            console.timeEnd("Loading object");
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
@@ -956,7 +965,6 @@ var vim3d = {
         }
         function loadIntoScene(fileName, mtlurl, callback) {
             console.log("Loading object from " + fileName);
-            console.time("Loading object");
             var extPos = fileName.lastIndexOf(".");
             var ext = fileName.slice(extPos + 1).toLowerCase();
             switch (ext) {
@@ -1031,19 +1039,21 @@ var vim3d = {
                   var jsonData = JSON.parse(str);
                   // We have been given a list of items to load, lets load 'em
                   var entities = Object.keys(jsonData);
-                  var index = 0;
-                  var newLoader = () => {
-                    if (index < entities.length)
-                    {
-                      entity = entities[index];
-                      index = index + 1;
-                      url = jsonData[entity];
-                      
-                      loadIntoScene(url, mtlurl);
-                      newLoader();
-                    }
-                  }
-                  newLoader();
+                  var entitiesToLoad = entities.length;
+                  entities.forEach((entity, index) => {
+                    var url = jsonData[entity]
+                    console.time("Loading: " + entity);
+           
+                    loadIntoScene(url, mtlurl, () => {
+                      // Thank goodness there is no threading in JS :-)
+                      console.timeEnd("Loading: " + entity);
+
+                      entitiesToLoad = entitiesToLoad - 1;
+                      console.log(`Completed ${entitiesToLoad - entities.length}, ${entitiesToLoad} remaining`);
+                      if (callback && !entitiesToLoad)
+                        callback();
+                    });
+                  })
                   return;
                 }
                 // HACK: Assume g3d as default case.

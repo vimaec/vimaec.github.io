@@ -16,7 +16,7 @@ fs.readdir(houston, function (err, files) {
     const filename = files[f];
     if (filename.endsWith(".json"))
       continue;
-    const entityName = path.basename(filename).replace(' ', '_');
+    const entityName = path.basename(filename).replace(/\w/g, '_');
     output[entityName] = `./models/${targetDir}/${encodeURIComponent(filename)}`;
   }
   fs.writeFileSync(path.join(houston, "index.json"), JSON.stringify(output));
