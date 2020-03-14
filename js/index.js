@@ -334,18 +334,18 @@ function throttle(func, wait, options) {
 
 // END: Deepmerge
 
-var vertexShader = `
+var vertexShader = `#version 300 es
     precision mediump float;
     precision mediump int;
 
-    uniform mat4 modelViewMatrix; // optional
-    uniform mat4 projectionMatrix; // optional
+    in mat4 modelViewMatrix; // optional
+    in mat4 projectionMatrix; // optional
 
-    attribute vec3 position;
-    attribute float color;
+    in vec3 position;
+    in float color;
 
-    varying vec3 vPosition;
-    varying float vColor;
+    out vec3 vPosition;
+    out float vColor;
 
     void main()	{
 
@@ -356,32 +356,36 @@ var vertexShader = `
     }
 `;
 
-var fragmentShader = `
+var fragmentShader = `#version 300 es
     precision mediump float;
     precision mediump int;
 
     uniform float time;
 
-    varying vec3 vPosition;
-    varying float vColor;
+    in vec3 vPosition;
+    in float vColor;
+
+    out vec4 fragmentColor;
 
     vec4 toColor(float r, float g, float b, float a) {
         return vec4(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
     }
 
     void main()	{
-        int bits = floatBitsToInt(vColor);
-        int r = (bits >> 24) | 0xFF;
-        int g = (bits >> 16) | 0xFF;
-        int b = (bits >> 8) | 0xFF;
-        int a = (bits) | 0xFF;    
-
-        vec4 color = toColor(r, g, b,a);
+        /*
+        uint bits = floatBitsToUint(vColor);
+        uint r = (bits >> 24) | 0xFFu;
+        uint g = (bits >> 16) | 0xFFu;
+        uint b = (bits >> 8) | 0xFFu;
+        uint a = (bits) | 0xFFu;    
         
         // Gives weird effect
         //color.r += sin( vPosition.x * 10.0 + time ) * 0.5;
 
-        gl_FragColor = color;
+        //fragmentColor = toColor(float(r), float(g), float(b), float(a));
+        //fragmentColor = toColor(155.0, 155.0, 155.0, 128.0f);
+        */
+        fragmentColor = vec4(1,0,0,1);
     }
 `;
 
@@ -416,6 +420,9 @@ var vim3d = {
             showStats: false,
             showGui: false,
             pubnub: false,
+            loader: {
+                computeVertexNormals: false,
+            },
             camera: {
                 near: 0.1,
                 far: 15000,
@@ -762,9 +769,11 @@ var vim3d = {
             if (!canvas) {
                 // Add to a div in the web page.
                 canvas = document.createElement('canvas');
-                document.body.appendChild(canvas);
+                document.body.appendChild(canvas);            
             }
-            renderer = new THREE.WebGLRenderer({ antialias: true, canvas: canvas });
+            var context = canvas.getContext( 'webgl2', { alpha: true } );
+            // TODO: consider turning of antialiasing    
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, context: context });
             // Create the camera and size everything appropriately  
             camera = new THREE.PerspectiveCamera();
             // Initialize the normalized moust position for ray-casting.
@@ -1008,7 +1017,8 @@ var vim3d = {
                 case "ply": {
                     var loader = new THREE.PLYLoader();
                     loader.load(fileName, function (geometry) {
-                        geometry.computeVertexNormals();
+                        if (settings.loader.computeVertexNormals)
+                            geometry.computeVertexNormals();
                         loadObject(new THREE.Mesh(geometry));
                     });
                     return;
@@ -1016,7 +1026,8 @@ var vim3d = {
                 case "stl": {
                     var loader = new THREE.STLLoader();
                     loader.load(fileName, function (geometry) {
-                        geometry.computeVertexNormals();
+                        if (settings.loader.computeVertexNormals)
+                            geometry.computeVertexNormals();
                         loadObject(new THREE.Mesh(geometry));
                     });
                     return;
@@ -1027,8 +1038,8 @@ var vim3d = {
                 {
                     var loader = new THREE.G3DLoader();
                     loader.load(fileName, function (geometry) {
-                        // TODO: decide whether this is really necessary
-                        geometry.computeVertexNormals();
+                        if (settings.loader.computeVertexNormals)
+                            geometry.computeVertexNormals();
                         loadObject(new THREE.Mesh(geometry));
                     }, null, console.error);
                     return;
