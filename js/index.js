@@ -338,8 +338,8 @@ var vertexShader = `#version 300 es
     precision mediump float;
     precision mediump int;
 
-    in mat4 modelViewMatrix; // optional
-    in mat4 projectionMatrix; // optional
+    uniform mat4 modelViewMatrix; // optional
+    uniform mat4 projectionMatrix; // optional
 
     in vec3 position;
     in float color;
@@ -372,32 +372,21 @@ var fragmentShader = `#version 300 es
     }
 
     void main()	{
-        /*
         uint bits = floatBitsToUint(vColor);
         uint r = (bits >> 24) | 0xFFu;
         uint g = (bits >> 16) | 0xFFu;
         uint b = (bits >> 8) | 0xFFu;
         uint a = (bits) | 0xFFu;    
         
-        // Gives weird effect
-        //color.r += sin( vPosition.x * 10.0 + time ) * 0.5;
-
-        //fragmentColor = toColor(float(r), float(g), float(b), float(a));
+        fragmentColor = toColor(float(r), float(g), float(b), float(a));
         //fragmentColor = toColor(155.0, 155.0, 155.0, 128.0f);
-        */
-        fragmentColor = vec4(1,0,0,1);
+        //fragmentColor = vec4(1,0,0,1);
     }
 `;
 
 // Main ARA code
 var vim3d = {
     view: function (options) {
-        // Check WebGL presence
-        if (!Detector.webgl) {
-            Detector.addGetWebGLMessage();
-            return;
-        }       
-
         // Pubnub initialization code
         var myUUID;
         var pubnub;

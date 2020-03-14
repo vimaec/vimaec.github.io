@@ -15,7 +15,6 @@ const srcFiles = [
     'node_modules/dat.gui/build/dat.gui.js',
     'node_modules/three/build/three.js',
     'node_modules/three/examples/js/libs/stats.min.js',
-    'node_modules/three/examples/js/Detector.js',
     'node_modules/three/examples/js/controls/OrbitControls.js', 
     'node_modules/three/examples/js/loaders/FBXLoader.js',
     'node_modules/three/examples/js/loaders/ColladaLoader.js',
