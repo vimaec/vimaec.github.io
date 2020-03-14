@@ -15,26 +15,22 @@
 </body>
   <script>
       vim3d.view(
-          {
-              url: "./models/Houston/index.json",
-              // models: { 
-              //   Lighting_Fixtures: "./models/Houston/Lighting Fixtures.g3d",
-              //   Doors: "./models/Houston/Doors.g3d",
-              //   Walls: "./models/Houston/Walls.g3d",
-              // },
+          { 
+            url: "./models/Houston/index.json",
               pubnub: false,
               object: { 
                   scale: 0.1, 
-                  rotation: { x: 270 }, 
+                  grotation: { x: 270 }, 
                   position: { y: 1 } 
               }, 
               camera: { 
                   position: { x: -10, y: 5, z: -10 }, 
-                  panSpeed: 1.0,
-                screenSpacePanning: false,
-                  pixelPerKeyPress: 7.0,
-                  zoomSpeed: 1.0,
-                  rotateSpeed: 1.0,
+                  controls: {
+                    panSpeed: 1.0,
+                    pixelPerKeyPress: 7.0,
+                    zoomSpeed: 1.0,
+                    rotateSpeed: 1.0,
+                },
               }, 
               showStats: true,
               showGui: true, 
@@ -47,9 +43,12 @@
               light2: {
                   intensity: 0.5,
               },
+              background: {
+                  color: { r: 0x00, g: 0x00, b: 0x33 }
+              }
           });
   </script>
   <div class="logo"/>
   <div id="bim-data-container" class="bdc"></div>
-  <script src="./js/bim-data-pane.jsx" type="text/babel"></script>
+<!-- <script src="./js/bim-data-pane.jsx" type="text/babel"></script> -->
 </html>
