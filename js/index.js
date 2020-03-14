@@ -342,10 +342,10 @@ var vertexShader = `#version 300 es
     uniform mat4 projectionMatrix; // optional
 
     in vec3 position;
-    in float color;
+    in vec4 color;
 
     out vec3 vPosition;
-    out float vColor;
+    out vec4 vColor;
 
     void main()	{
 
@@ -360,27 +360,12 @@ var fragmentShader = `#version 300 es
     precision mediump float;
     precision mediump int;
 
-    uniform float time;
-
-    in vec3 vPosition;
-    in float vColor;
+    in vec4 vColor;
 
     out vec4 fragmentColor;
 
-    vec4 toColor(float r, float g, float b, float a) {
-        return vec4(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
-    }
-
     void main()	{
-        uint bits = floatBitsToUint(vColor);
-        uint r = (bits >> 24) | 0xFFu;
-        uint g = (bits >> 16) | 0xFFu;
-        uint b = (bits >> 8) | 0xFFu;
-        uint a = (bits) | 0xFFu;    
-        
-        fragmentColor = toColor(float(r), float(g), float(b), float(a));
-        //fragmentColor = toColor(155.0, 155.0, 155.0, 128.0f);
-        //fragmentColor = vec4(1,0,0,1);
+        fragmentColor = vColor / 255.0;
     }
 `;
 
