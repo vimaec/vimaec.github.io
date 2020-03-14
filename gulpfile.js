@@ -16,6 +16,7 @@ const srcFiles = [
     'node_modules/three/build/three.js',
     'node_modules/three/examples/js/libs/stats.min.js',
     'node_modules/three/examples/js/controls/OrbitControls.js', 
+    'node_modules/three/examples/js/controls/TrackballControls.js', 
     'node_modules/three/examples/js/loaders/FBXLoader.js',
     'node_modules/three/examples/js/loaders/ColladaLoader.js',
     'node_modules/three/examples/js/loaders/GCodeLoader.js',

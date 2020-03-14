@@ -348,10 +348,8 @@ var vertexShader = `#version 300 es
     out vec4 vColor;
 
     void main()	{
-
         vPosition = position;
         vColor = color;
-
         gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
     }
 `;
@@ -402,17 +400,20 @@ var vim3d = {
                 far: 15000,
                 fov: 50,
                 zoom: 1,
-                enableDamping: false,
-                dampingFactor: 0.05,
-                autoRotateSpeed: 0,
-                rotateSpeed: 1.0,
-                enablePan: true,
-	            panSpeed: 1.0,
-	            screenSpacePanning: false,
-                pixelPerKeyPress: 7.0,
-                zoomSpeed: 1.0,
                 position: { x: 0, y: 5, z: -5 },
                 target: { x: 0, y: -1, z: 0, },
+                controls: {
+                    trackball: false,
+                    enableDamping: false,
+                    dampingFactor: 0.05,
+                    autoRotateSpeed: 0,
+                    rotateSpeed: 1.0,
+                    enablePan: true,
+                    panSpeed: 1.0,
+                    screenSpacePanning: true,
+                    pixelPerKeyPress: 7.0,
+                    zoomSpeed: 1.0,
+                }
             },
             background: {
                 // color: { r: 0x72, g: 0x64, b: 0x5b, }
@@ -522,16 +523,25 @@ var vim3d = {
             camera.far = settings.camera.far;
         }
         function updateCameraControls() {
-            controls.enableDamping = settings.camera.enableDamping; // an animation loop is required when either damping or auto-rotation are enabled
-            controls.dampingFactor = settings.camera.dampingFactor;
-            controls.autoRotate = settings.camera.autoRotateSpeed > 0.0001 || settings.camera.autoRotateSpeed< -0.0001;
+            if (!controls || controls.trackball != settings.camera.controls.trackball)
+            {
+                controls = settings.camera.controls.trackball 
+                    ? new THREE.TrackballControls(camera, renderer.domElement) 
+                    : new THREE.OrbitControls(camera, renderer.domElement);
+                controls.trackball = settings.camera.controls.trackball;
+            }
+
+            controls.enableDamping = settings.camera.controls.enableDamping; // an animation loop is required when either damping or auto-rotation are enabled
+            controls.dampingFactor = settings.camera.controls.dampingFactor;
+            controls.autoRotate = settings.camera.controls.autoRotateSpeed > 0.0001 || settings.camera.controls.autoRotateSpeed< -0.0001;
             controls.autoRotateSpeed = settings.camera.autoRotateSpeed;  
-            controls.rotateSpeed = settings.camera.rotateSpeed; 
-            controls.enablePan = settings.camera.enablePan;
-            controls.panSpeed = settings.camera.panSpeed;
-            controls.screenSpacePanning = settings.camera.screenSpacePanning;
-            controls.keySpanSpeed = settings.camera.pixelPerKeyPress;
-            controls.zoomSpeed = settings.camera.zoomSpeed;
+            controls.rotateSpeed = settings.camera.controls.rotateSpeed; 
+            controls.enablePan = settings.camera.controls.enablePan;
+            controls.panSpeed = settings.camera.controls.panSpeed;
+            controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
+            controls.keySpanSpeed = settings.camera.controls.pixelPerKeyPress;
+            controls.zoomSpeed = settings.camera.controls.zoomSpeed;
+            controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
         }
         // Called every frame in case settings are updated 
         function updateScene() {
@@ -796,7 +806,6 @@ var vim3d = {
             //material = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
 
             material = new THREE.RawShaderMaterial( {
-
                 uniforms: {
                     time: { value: 1.0 }
                 },
@@ -814,8 +823,7 @@ var vim3d = {
             // Initial scene update: happens if controls change 
             updateScene();
 
-            // Create orbit controls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            // Creates and updates camera controls 
             updateCameraControls();
 
             // Stats display 
