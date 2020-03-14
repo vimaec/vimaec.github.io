@@ -481,7 +481,13 @@ var vim3d = {
 
         // Initialization of scene, loading of objects, and launch animation loop
         init();
-        loadIntoScene(settings.url, settings.mtlurl);
+        if (Array.isArray(settings.url)) {
+            for (var url of settings.url)
+                loadIntoScene(url);
+        }
+        else {
+            loadIntoScene(settings.url, settings.mtlurl);
+        }
         animate();
         function isColor(obj) {
             return typeof (obj) === 'object' && 'r' in obj && 'g' in obj && 'b' in obj;
@@ -530,7 +536,6 @@ var vim3d = {
                     : new THREE.OrbitControls(camera, renderer.domElement);
                 controls.trackball = settings.camera.controls.trackball;
             }
-
             controls.enableDamping = settings.camera.controls.enableDamping; // an animation loop is required when either damping or auto-rotation are enabled
             controls.dampingFactor = settings.camera.controls.dampingFactor;
             controls.autoRotate = settings.camera.controls.autoRotateSpeed > 0.0001 || settings.camera.controls.autoRotateSpeed< -0.0001;
@@ -563,8 +568,8 @@ var vim3d = {
         }
         function updateObjects() {
             for (var child of objects) {
-                child.castShadow = true;
-                child.receiveShadow = true;
+                //child.castShadow = true;
+                //child.receiveShadow = true;
                 var scale = scalarToVec(settings.object.scale);
                 child.scale.copy(scale);
                 if (!materialsLoaded) {
