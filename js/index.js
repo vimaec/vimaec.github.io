@@ -334,57 +334,42 @@ function throttle(func, wait, options) {
 
 // END: Deepmerge
 
-var vertexShader = `
+var vertexShader = `#version 300 es
     precision mediump float;
     precision mediump int;
 
     uniform mat4 modelViewMatrix; // optional
     uniform mat4 projectionMatrix; // optional
 
-    attribute vec3 position;
-    attribute vec4 color;
+    in vec3 position;
+    in vec4 color;
 
-    varying vec3 vPosition;
-    varying vec4 vColor;
+    out vec4 vColor;
 
     void main()	{
-
-        vPosition = position;
         vColor = color;
-
         gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
     }
 `;
 
-var fragmentShader = `
+var fragmentShader = `#version 300 es
     precision mediump float;
     precision mediump int;
 
     uniform float time;
 
-    varying vec3 vPosition;
-    varying vec4 vColor;
+    in vec4 vColor;
+
+    out vec4 fragmentColor;
 
     void main()	{
-
-        vec4 color = vec4( vColor );
-        
-        // Gives weird effect
-        //color.r += sin( vPosition.x * 10.0 + time ) * 0.5;
-
-        gl_FragColor = color;
+        fragmentColor = vColor;
     }
 `;
 
 // Main ARA code
 var vim3d = {
-    view: function (options) {
-        // Check WebGL presence
-        if (!Detector.webgl) {
-            Detector.addGetWebGLMessage();
-            return;
-        }       
-
+    view: function (options) {   
         // Pubnub initialization code
         var myUUID;
         var pubnub;
@@ -756,7 +741,9 @@ var vim3d = {
                 document.body.appendChild(canvas);
             }
             var context = canvas.getContext( 'webgl2', { alpha: false } );
-            renderer = new THREE.WebGLRenderer({ antialias: true, canvas, context });
+            if (!context)
+                console.error("WebGL2 is not available");
+            renderer = new THREE.WebGLRenderer({ canvas, context });
             // Create the camera and size everything appropriately  
             camera = new THREE.PerspectiveCamera();
             // Initialize the normalized moust position for ray-casting.
