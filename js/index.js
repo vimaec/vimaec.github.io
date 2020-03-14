@@ -334,18 +334,18 @@ function throttle(func, wait, options) {
 
 // END: Deepmerge
 
-var vertexShader = `#version 300 es
+var vertexShader = `
     precision mediump float;
     precision mediump int;
 
     uniform mat4 modelViewMatrix; // optional
     uniform mat4 projectionMatrix; // optional
 
-    in vec3 position;
-    in vec4 color;
+    attribute vec3 position;
+    attribute vec4 color;
 
-    out vec3 vPosition;
-    out vec4 vColor;
+    varying vec3 vPosition;
+    varying vec4 vColor;
 
     void main()	{
         vPosition = position;
@@ -354,16 +354,14 @@ var vertexShader = `#version 300 es
     }
 `;
 
-var fragmentShader = `#version 300 es
+var fragmentShader = `
     precision mediump float;
     precision mediump int;
 
-    in vec4 vColor;
-
-    out vec4 fragmentColor;
+    varying vec4 vColor;
 
     void main()	{
-        fragmentColor = vColor / 255.0;
+        gl_FragColor = vColor / 255.0;
     }
 `;
 
@@ -768,9 +766,7 @@ var vim3d = {
                 canvas = document.createElement('canvas');
                 document.body.appendChild(canvas);            
             }
-            var context = canvas.getContext( 'webgl2', { alpha: true } );
-            // TODO: consider turning of antialiasing    
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, context: context });
+            renderer = new THREE.WebGLRenderer({ canvas: canvas });
             // Create the camera and size everything appropriately  
             camera = new THREE.PerspectiveCamera();
             // Initialize the normalized moust position for ray-casting.
@@ -953,6 +949,7 @@ var vim3d = {
             outputStats(g);
             g.computeBoundsTree();
 
+            updateObjects();
             if (callback)
               callback();
           }
@@ -1175,7 +1172,6 @@ var vim3d = {
             controls.update();
             rayCastTest();
             throttledPublishMessage();
-            //publishMessage();
             renderer.render(scene, camera);
         }
     }
