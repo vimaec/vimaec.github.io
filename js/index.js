@@ -373,8 +373,12 @@ var fragmentShader = `
     varying vec4 vColor;
 
     void main()	{
+        if (vColor.w < 0.2)
+            discard;
         gl_FragColor = vColor;
     }
+
+    
 `;
 
 function fetchText(url){
@@ -386,13 +390,9 @@ function fetchText(url){
 
 // Main ARA code
 var vim3d = {
-    view: function (options) {
-        // Check WebGL presence
-        // if (!Detector.webgl) {
-        //     Detector.addGetWebGLMessage();
-        //     return;
-        // }       
+}
 
+vim3d.view = function (options) {
         // Pubnub initialization code
         var myUUID;
         var pubnub;
@@ -802,6 +802,7 @@ var vim3d = {
             resizeCanvas(true);
             // Create scene object
             scene = new THREE.Scene();
+
             // Used for hit-testing (see https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_cubes.html)
             rayCaster = new THREE.Raycaster();
             rayCaster.firstHitOnly = true;
@@ -917,6 +918,11 @@ var vim3d = {
                     withPresence: true
                 });
             }
+
+            vim3d.scene = scene;
+            vim3d.settings = settings;
+            vim3d.renderer = renderer;
+            vim3d.objects = objects;
         }
 
         function loadFromSettings(url, mtlurl)
@@ -1114,11 +1120,14 @@ var vim3d = {
                 default:
                 {
                     var loader = new THREE.G3DLoader();
-                    loader.load(fileName, (geometry) => {
-                      if (settings.loader.computeVertexNormals)
-                        geometry.computeVertexNormals();
-                      var mesh = new THREE.Mesh(geometry)
-                      loadObject(callback)(mesh);
+                    loader.load(fileName, function (geometry) {
+                        if (settings.loader.computeVertexNormals)
+                            geometry.computeVertexNormals();
+                        var mesh = new THREE.Mesh(geometry);
+                        var name = fileName.substring(fileName.lastIndexOf('/')+1);
+                        name = name.slice(0, -4);
+                        mesh.name = name;
+                        loadObject(callback)(mesh);
                     }, null, console.error);
                     return;
                 }
@@ -1211,7 +1220,8 @@ var vim3d = {
                 return; 
             }
             rayCaster.setFromCamera(mouse, camera);
-            intersections = rayCaster.intersectObjects(objects);
+            // Only count intersections against visible objects
+            intersections = rayCaster.intersectObjects(objects).filter(i => i.object.visible == true);
             if (intersections.length > 0)
             {
                 cursor.visible = settings.cursor.show;
@@ -1222,8 +1232,7 @@ var vim3d = {
             {
                 cursor.visible = false;
             }
-        }
-    
+        }    
     
         // Updates scene objects, and draws the scene 
         // TODO: update the camera 
@@ -1244,6 +1253,25 @@ var vim3d = {
               renderer.render(scene, camera);
             }
         }
-    }
-};
+    };
+
+vim3d.isolate = function(name) {
+    for (var obj of vim3d.objects)         
+        if (obj.name == name)
+            obj.visible = true;
+        else 
+            obj.visible = false;
+}
+
+vim3d.setVis = function(name, vis) {
+    for (var obj of vim3d.objects)         
+        if (obj.name == name)
+            obj.visible = vis;
+}
+
+vim3d.setVisAll = function(vis) {
+    for (var obj of vim3d.objects) 
+        obj.visible = vis;
+}
+
 //# sourceMappingURL=index.js.map
