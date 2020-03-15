@@ -814,7 +814,6 @@ vim3d.view = function (options) {
             // Initialize the normalized moust position for ray-casting.
             mouse = new THREE.Vector2();
          
-            resizeCanvas(true);
             // Create scene object
             scene = new THREE.Scene();
 
@@ -871,12 +870,7 @@ vim3d.view = function (options) {
 
             composer = new THREE.EffectComposer(renderer);
 
-            var parent = canvas.parentElement;
-            var rect = parent.getBoundingClientRect();
-            var width = rect.width;
-            var height = rect.height;
-    
-            ssaoPass = new THREE.SSAOPass( scene, camera, width, height );
+            ssaoPass = new THREE.SSAOPass( scene, camera );
             ssaoPass.kernelRadius = 16;
             composer.addPass( ssaoPass );
             
@@ -884,6 +878,7 @@ vim3d.view = function (options) {
             renderer.setPixelRatio(window.devicePixelRatio);
 
             // Initial scene update: happens if controls change 
+            resizeCanvas(true);
             updateScene();
 
             // Creates and updates camera controls 
@@ -993,6 +988,7 @@ vim3d.view = function (options) {
             var w = rect.width / window.devicePixelRatio;
             var h = rect.height / window.devicePixelRatio;
             renderer.setSize(w, h, false);
+            ssaoPass.setSize(rect.width, rect.height);
             // Set aspect ratio
             camera.aspect = canvas.width / canvas.height;
             camera.updateProjectionMatrix();
