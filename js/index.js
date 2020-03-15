@@ -361,8 +361,12 @@ var fragmentShader = `
     varying vec4 vColor;
 
     void main()	{
-        gl_FragColor = vColor / 255.0;
+        if (vColor.w < 200.0)
+            discard;
+        gl_FragColor = vec4(vColor.xyz / 255.0, 1.0 );
     }
+
+    
 `;
 
 // Main ARA code
