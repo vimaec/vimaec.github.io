@@ -341,17 +341,28 @@ var vertexShader = `
 
     uniform mat4 modelViewMatrix; // optional
     uniform mat4 projectionMatrix; // optional
+    uniform mat3 normalMatrix;
 
+    //uniform mat4 viewProjectionMatrix;
+
+    uniform vec3 lightDirection;
+    uniform float lightIntensity;
+    
     attribute vec3 position;
+    attribute vec3 normal;
     attribute vec4 color;
 
-    varying vec3 vPosition;
     varying vec4 vColor;
 
     void main()	{
-        vPosition = position;
         vColor = color;
+
         gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        // This could be baked back into the mesh
+        vec3 transformedNormal = normalMatrix * normal;
+        float dotNL = dot ( normal, lightDirection );
+        float colorMult = clamp(lightIntensity * (1.0 + dotNL) / 2.0, 0.0, 1.0) / 255.0;
+        vColor = color * colorMult;
     }
 `;
 
@@ -362,7 +373,7 @@ var fragmentShader = `
     varying vec4 vColor;
 
     void main()	{
-        gl_FragColor = vColor / 255.0;
+        gl_FragColor = vColor;
     }
 `;
 
@@ -404,8 +415,9 @@ var vim3d = {
             showStats: false,
             showGui: false,
             pubnub: false,
+            useSSAO: true,
             loader: {
-                computeVertexNormals: false,
+                computeVertexNormals: true,
             },
             camera: {
                 near: 0.1,
@@ -455,7 +467,7 @@ var vim3d = {
             },
             light1: {
                 // TODO: the positions of the lights are all wrong. 
-                position: { x: 1, y: 1, z: 1 },
+                direction: { x: 0.3, y: -0.75, z: 0.3 },
                 color: { r: 0xFF, g: 0xFF, b: 0xFF },
                 intensity: 1.35,
             },
@@ -493,17 +505,7 @@ var vim3d = {
 
         // Initialization of scene, loading of objects, and launch animation loop
         init();
-
-        if (Array.isArray(settings.url))
-        {
-          settings.url.forEach((url) => {
-            loadIntoScene(url, settings.mtlurl);
-          })
-        }
-        else {
-          console.time("Loading: " + settings.url);
-          loadIntoScene(settings.url, settings.mtlurl, () => console.timeEnd("Loading: " + settings.url));  
-        }
+        loadFromSettings(settings.url, settings.mtlurl);
         animate();
         function isColor(obj) {
             return typeof (obj) === 'object' && 'r' in obj && 'g' in obj && 'b' in obj;
@@ -531,6 +533,21 @@ var vim3d = {
             if ('shininess' in settings)
                 targetMaterial.shininess = settings.shininess;
                 */
+
+          var viewProj = material.uniforms.viewProjectionMatrix.value;
+          viewProj.copy(camera.projectionMatrix);
+          viewProj.multiply(camera.matrixWorldInverse);
+
+          var light1Direction = material.uniforms.lightDirection.value;
+          var value = ('light1' in settings)
+            ? new toVec(settings.light1.direction)
+            : new THREE.Vector3(0.5, -0.5, 0.3)
+          
+          light1Direction.copy(value.normalize());
+
+          material.uniforms.lightIntensity.value = ('light1' in settings)
+            ? settings.light1.intensity
+            : 1.0;
         }
         function initCamera() {
             updateCamera();
@@ -572,15 +589,15 @@ var vim3d = {
             plane.visible = settings.plane.show;
             updateMaterial(plane.material, settings.plane.material);
             plane.position.copy(toVec(settings.plane.position));
-            light1.position.copy(toVec(settings.light1.position));
-            light1.color = toColor(settings.light1.color);
-            light1.intensity = settings.light1.intensity;
-            light2.position.copy(toVec(settings.light2.position));
-            light2.color = toColor(settings.light2.color);
-            light2.intensity = settings.light2.intensity;
-            sunlight.skyColor = toColor(settings.sunlight.skyColor);
-            sunlight.groundColor = toColor(settings.sunlight.groundColor);
-            sunlight.intensity = settings.sunlight.intensity;
+            // light1.position.copy(toVec(settings.light1.position));
+            // light1.color = toColor(settings.light1.color);
+            // light1.intensity = settings.light1.intensity;
+            // light2.position.copy(toVec(settings.light2.position));
+            // light2.color = toColor(settings.light2.color);
+            // light2.intensity = settings.light2.intensity;
+            // sunlight.skyColor = toColor(settings.sunlight.skyColor);
+            //sunlight.groundColor = toColor(settings.sunlight.groundColor);
+            //sunlight.intensity = settings.sunlight.intensity;
         }
         function updateObjects() {
             for (var child of objects) {
@@ -589,7 +606,7 @@ var vim3d = {
                 var scale = scalarToVec(settings.object.scale);
                 child.scale.copy(scale);
                 if (!materialsLoaded) {
-                    updateMaterial(material, settings.object.material);
+                    updateMaterial(material, settings);
                     child.material = material;
                 }
                 child.position.copy(settings.object.position);
@@ -818,27 +835,38 @@ var vim3d = {
             // Lights
             sunlight = new THREE.HemisphereLight();
             scene.add(sunlight);
-            light1 = addShadowedLight(scene);
-            light2 = addShadowedLight(scene);
+            //light1 = addShadowedLight(scene);
+            //light2 = addShadowedLight(scene);
             // Material 
             
             //material = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
 
             material = new THREE.RawShaderMaterial( {
                 uniforms: {
-                    time: { value: 1.0 }
+                  lightDirection: { value: new THREE.Vector3() },
+                  lightIntensity: { value: 1.0 },
+                  viewProjectionMatrix: { value: new THREE.Matrix4() }
                 },
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
-                side: THREE.DoubleSide,
-                transparent: true
             } );
 
+            // postprocessing
+
+            composer = new THREE.EffectComposer(renderer);
+
+            var parent = canvas.parentElement;
+            var rect = parent.getBoundingClientRect();
+            var width = rect.width;
+            var height = rect.height;
+    
+            var ssaoPass = new THREE.SSAOPass( scene, camera, width, height );
+            ssaoPass.kernelRadius = 16;
+            composer.addPass( ssaoPass );
+            
             // THREE JS renderer
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.gammaInput = true;
-            renderer.gammaOutput = true;
-            renderer.shadowMap.enabled = true;
+
             // Initial scene update: happens if controls change 
             updateScene();
 
@@ -889,6 +917,31 @@ var vim3d = {
                     withPresence: true
                 });
             }
+        }
+
+        function loadFromSettings(url, mtlurl)
+        {
+          if (Array.isArray(url))
+          {
+            console.time("Loading Array: " + url);
+            toLoad = url.length;
+            url.forEach((url) => {
+              loadIntoScene(url, mtlurl, () => {
+                toLoad = toLoad - 1;
+                if (toLoad === 0) {
+                  console.timeEnd("Loading Array: " + url)
+                  console.log("\n --- Completed Load --- \n")
+                }
+              })
+            })
+          }
+          else {
+            console.time("Loading: " + url);
+            loadIntoScene(url, mtlurl, () => {
+              console.timeEnd("Loading: " + url)
+              console.log("\n --- Completed Load --- \n")
+            });  
+          }
         }
 
         // Use this when in full frame mode.
@@ -1182,7 +1235,14 @@ var vim3d = {
             controls.update();
             rayCastTest();
             throttledPublishMessage();
-            renderer.render(scene, camera);
+
+            if (settings.useSSAO)
+            {
+              composer.render();
+            }
+            else {
+              renderer.render(scene, camera);
+            }
         }
     }
 };

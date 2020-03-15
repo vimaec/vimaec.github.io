@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const targetDir = "houston";
+const targetDir = "category_test";
 const dir = path.dirname(__filename);
 const houston = path.join(dir, targetDir);
 
