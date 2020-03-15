@@ -359,7 +359,7 @@ var vertexShader = `
 
         gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
         // This could be baked back into the mesh
-        vec3 transformedNormal = normalMatrix * normal;
+        // vec3 transformedNormal = normalMatrix * normal;
         float dotNL = dot ( normal, lightDirection );
         float colorMult = clamp(lightIntensity * (1.0 + dotNL) / 2.0, 0.0, 1.0) / 255.0;
         vColor = color * colorMult;
@@ -377,8 +377,6 @@ var fragmentShader = `
             discard;
         gl_FragColor = vColor;
     }
-
-    
 `;
 
 function fetchText(url){
@@ -404,6 +402,8 @@ vim3d.view = function (options) {
         var cameraState = { position: {x:0,y:0,z:0}, rotation: {x:0,y:0,z:0}};
         var stats, gui, controls;
         var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
+        var ssaoPass, composer;
+
         var materialsLoaded = false;
         var objects = [];
         var throttledPublishMessage;
@@ -415,7 +415,12 @@ vim3d.view = function (options) {
             showStats: false,
             showGui: false,
             pubnub: false,
-            useSSAO: true,
+            SSAO: { 
+              enable: true,
+              kernelRadius: 16,
+              minDistance: 0.005,
+              maxDistance: 0.1
+            },
             loader: {
                 computeVertexNormals: true,
             },
@@ -581,6 +586,16 @@ vim3d.view = function (options) {
             controls.zoomSpeed = settings.camera.controls.zoomSpeed;
             controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
         }
+
+        function updateSSAO() {
+          if (settings.SSAO.enable)
+          {
+            ssaoPass.kernelRadius = settings.SSAO.kernelRadius;
+            ssaoPass.minDistance = settings.SSAO.minDistance;
+            ssaoPass.maxDistance = settings.SSAO.maxDistance;  
+          }
+        }
+
         // Called every frame in case settings are updated 
         function updateScene() {
             scene.background = toColor(settings.background.color);
@@ -861,7 +876,7 @@ vim3d.view = function (options) {
             var width = rect.width;
             var height = rect.height;
     
-            var ssaoPass = new THREE.SSAOPass( scene, camera, width, height );
+            ssaoPass = new THREE.SSAOPass( scene, camera, width, height );
             ssaoPass.kernelRadius = 16;
             composer.addPass( ssaoPass );
             
@@ -1241,11 +1256,12 @@ vim3d.view = function (options) {
             updateObjects();
             updateCamera();
             updateCameraControls();
+            updateSSAO();
             controls.update();
             rayCastTest();
             throttledPublishMessage();
 
-            if (settings.useSSAO)
+            if (settings.SSAO.enable)
             {
               composer.render();
             }
