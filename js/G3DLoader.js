@@ -187,41 +187,41 @@ THREE.G3DLoader.prototype =
     // Adds an attribute to a BufferGeometry, if not null
     addAttributeToGeometry : function ( geometry, name, attr ) {
         if (attr)
-            geometry.addAttribute( name, new THREE.BufferAttribute( attr.data, attr.dataArity ) );
+            geometry.setAttribute( name, new THREE.BufferAttribute( attr.data, attr.dataArity ) );
     },
 
     // Constructs a BufferGeometry from an ArrayBuffer arranged as a G3D
     parse: function ( data )
     {
-        console.log("Parsing data buffer into G3D");
-        console.log("data size " + data.length);
+        //console.log("Parsing data buffer into G3D");
+        //console.log("data size " + data.length);
 
-        console.log("Parsing BFAST structure");
+        //console.log("Parsing BFAST structure");
 
         // A G3D follows the BFAST data arrangement, which is a collection of named byte arrays
         var bfast = this.parseBFast( data );
 
-        console.log("found: " + bfast.buffers.length + " buffers");
-        for (var i=0; i < bfast.names.length; ++i)
-            console.log(bfast.names[i]);
+        //console.log("found: " + bfast.buffers.length + " buffers");
+        //for (var i=0; i < bfast.names.length; ++i)
+        //    console.log(bfast.names[i]);
 
-        console.log("Constructing G3D");
+        //console.log("Constructing G3D");
         var g3d = this.constructG3d( bfast );
 
-        console.log("found: " + g3d.attributes.length + " attributes");
-        console.log("meta data: " + g3d.meta);
+        //console.log("found: " + g3d.attributes.length + " attributes");
+        //console.log("meta data: " + g3d.meta);
 
         // Find the vertex position data attribute
         var position = this.findAttribute( g3d, null, "position", "0", "float32", "3" );
-        console.log(position ? "Found position data" : "No position data found");
+        //console.log(position ? "Found position data" : "No position data found");
 
         // Find the index buffer data attribute
         var indices = this.findAttribute( g3d, null, "index", "0", "int32", "1" );
-        console.log(position ? "Found index data" : "No index data found");
+        //console.log(position ? "Found index data" : "No index data found");
 
         // Find the color attribute
         var colors = this.findAttribute( g3d, null, "color", "0", "int8", "4" );
-        console.log(position ? "Found color data" : "No color data found");
+        //console.log(position ? "Found color data" : "No color data found");
 
         if (!position) throw new Error("Cannot create geometry without a valid vertex attribute");
         if (!indices) throw new Error("Cannot create geometry without a valid index attribute");

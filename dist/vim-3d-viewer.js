@@ -361,13 +361,19 @@ var fragmentShader = `
     varying vec4 vColor;
 
     void main()	{
-        gl_FragColor = vColor / 255.0;
+        if (vColor.w < 200.0)
+            discard;
+        gl_FragColor = vec4(vColor.xyz / 255.0, 1.0 );
     }
+
+    
 `;
 
 // Main ARA code
 var vim3d = {
-    view: function (options) {
+}
+
+vim3d.view = function (options) {
         // Pubnub initialization code
         var myUUID;
         var pubnub;
@@ -767,6 +773,7 @@ var vim3d = {
             resizeCanvas(true);
             // Create scene object
             scene = new THREE.Scene();
+
             // Used for hit-testing (see https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_cubes.html)
             rayCaster = new THREE.Raycaster();
             rayCaster.firstHitOnly = true;
@@ -871,6 +878,11 @@ var vim3d = {
                     withPresence: true
                 });
             }
+
+            vim3d.scene = scene;
+            vim3d.settings = settings;
+            vim3d.renderer = renderer;
+            vim3d.objects = objects;
         }
 
         // Use this when in full frame mode.
@@ -1024,7 +1036,11 @@ var vim3d = {
                     loader.load(fileName, function (geometry) {
                         if (settings.loader.computeVertexNormals)
                             geometry.computeVertexNormals();
-                        loadObject(new THREE.Mesh(geometry));
+                        var mesh = new THREE.Mesh(geometry);
+                        var name = fileName.substring(fileName.lastIndexOf('/')+1);
+                        name = name.slice(0, -4);
+                        mesh.name = name;
+                        loadObject(mesh);
                     }, null, console.error);
                     return;
                 }
@@ -1117,7 +1133,8 @@ var vim3d = {
                 return; 
             }
             rayCaster.setFromCamera(mouse, camera);
-            intersections = rayCaster.intersectObjects(objects);
+            // Only count intersections against visible objects
+            intersections = rayCaster.intersectObjects(objects).filter(i => i.object.visible == true);
             if (intersections.length > 0)
             {
                 cursor.visible = settings.cursor.show;
@@ -1128,8 +1145,7 @@ var vim3d = {
             {
                 cursor.visible = false;
             }
-        }
-    
+        }    
     
         // Updates scene objects, and draws the scene 
         // TODO: update the camera 
@@ -1143,8 +1159,27 @@ var vim3d = {
             throttledPublishMessage();
             renderer.render(scene, camera);
         }
-    }
-};
+    };
+
+vim3d.isolate = function(name) {
+    for (var obj of vim3d.objects)         
+        if (obj.name == name)
+            obj.visible = true;
+        else 
+            obj.visible = false;
+}
+
+vim3d.setVis = function(name, vis) {
+    for (var obj of vim3d.objects)         
+        if (obj.name == name)
+            obj.visible = vis;
+}
+
+vim3d.setVisAll = function(vis) {
+    for (var obj of vim3d.objects) 
+        obj.visible = vis;
+}
+
 //# sourceMappingURL=index.js.map
 ;/**
  * dat-gui JavaScript Controller Library
@@ -74907,41 +74942,41 @@ THREE.G3DLoader.prototype =
     // Adds an attribute to a BufferGeometry, if not null
     addAttributeToGeometry : function ( geometry, name, attr ) {
         if (attr)
-            geometry.addAttribute( name, new THREE.BufferAttribute( attr.data, attr.dataArity ) );
+            geometry.setAttribute( name, new THREE.BufferAttribute( attr.data, attr.dataArity ) );
     },
 
     // Constructs a BufferGeometry from an ArrayBuffer arranged as a G3D
     parse: function ( data )
     {
-        console.log("Parsing data buffer into G3D");
-        console.log("data size " + data.length);
+        //console.log("Parsing data buffer into G3D");
+        //console.log("data size " + data.length);
 
-        console.log("Parsing BFAST structure");
+        //console.log("Parsing BFAST structure");
 
         // A G3D follows the BFAST data arrangement, which is a collection of named byte arrays
         var bfast = this.parseBFast( data );
 
-        console.log("found: " + bfast.buffers.length + " buffers");
-        for (var i=0; i < bfast.names.length; ++i)
-            console.log(bfast.names[i]);
+        //console.log("found: " + bfast.buffers.length + " buffers");
+        //for (var i=0; i < bfast.names.length; ++i)
+        //    console.log(bfast.names[i]);
 
-        console.log("Constructing G3D");
+        //console.log("Constructing G3D");
         var g3d = this.constructG3d( bfast );
 
-        console.log("found: " + g3d.attributes.length + " attributes");
-        console.log("meta data: " + g3d.meta);
+        //console.log("found: " + g3d.attributes.length + " attributes");
+        //console.log("meta data: " + g3d.meta);
 
         // Find the vertex position data attribute
         var position = this.findAttribute( g3d, null, "position", "0", "float32", "3" );
-        console.log(position ? "Found position data" : "No position data found");
+        //console.log(position ? "Found position data" : "No position data found");
 
         // Find the index buffer data attribute
         var indices = this.findAttribute( g3d, null, "index", "0", "int32", "1" );
-        console.log(position ? "Found index data" : "No index data found");
+        //console.log(position ? "Found index data" : "No index data found");
 
         // Find the color attribute
         var colors = this.findAttribute( g3d, null, "color", "0", "int8", "4" );
-        console.log(position ? "Found color data" : "No color data found");
+        //console.log(position ? "Found color data" : "No color data found");
 
         if (!position) throw new Error("Cannot create geometry without a valid vertex attribute");
         if (!indices) throw new Error("Cannot create geometry without a valid index attribute");
