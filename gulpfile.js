@@ -17,6 +17,16 @@ const srcFiles = [
     'node_modules/three/examples/js/libs/stats.min.js',
     'node_modules/three/examples/js/controls/OrbitControls.js', 
     'node_modules/three/examples/js/controls/TrackballControls.js', 
+
+    // Renderer effects
+		'node_modules/three/examples/js/shaders/CopyShader.js',
+    'node_modules/three/examples/js/postprocessing/EffectComposer.js',
+    'node_modules/three/examples/js/postprocessing/ShaderPass.js',
+		'node_modules/three/examples/js/math/SimplexNoise.js',
+		'node_modules/three/examples/js/shaders/SSAOShader.js',
+		'node_modules/three/examples/js/postprocessing/SSAOPass.js',
+
+    // Scene loaders
     'node_modules/three/examples/js/loaders/FBXLoader.js',
     'node_modules/three/examples/js/loaders/ColladaLoader.js',
     'node_modules/three/examples/js/loaders/GCodeLoader.js',

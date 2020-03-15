@@ -127,7 +127,7 @@ var PropList = /** @class */ (function () {
         configurable: true
     });
     PropList.prototype.find = function (name) {
-        return this.items.find(function (v) { return v.name === name; });
+        return this.items.find((v) => v.name === name );
     };
     return PropList;
 }());
@@ -326,6 +326,7 @@ function throttle(func, wait, options) {
         result = func.apply(context, args);
         if (!timeout) context = args = null;
       } else if (!timeout && options.trailing !== false) {
+        // deepcode ignore UseArrowFunction: <please specify a reason of ignoring this>
         timeout = setTimeout(later, remaining);
       }
       return result;
@@ -340,17 +341,28 @@ var vertexShader = `
 
     uniform mat4 modelViewMatrix; // optional
     uniform mat4 projectionMatrix; // optional
+    uniform mat3 normalMatrix;
 
+    //uniform mat4 viewProjectionMatrix;
+
+    uniform vec3 lightDirection;
+    uniform float lightIntensity;
+    
     attribute vec3 position;
+    attribute vec3 normal;
     attribute vec4 color;
 
-    varying vec3 vPosition;
     varying vec4 vColor;
 
     void main()	{
-        vPosition = position;
         vColor = color;
+
         gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        // This could be baked back into the mesh
+        // vec3 transformedNormal = normalMatrix * normal;
+        float dotNL = dot ( normal, lightDirection );
+        float colorMult = clamp(lightIntensity * (1.0 + dotNL) / 2.0, 0.0, 1.0) / 255.0;
+        vColor = color * colorMult;
     }
 `;
 
@@ -361,13 +373,18 @@ var fragmentShader = `
     varying vec4 vColor;
 
     void main()	{
-        if (vColor.w < 200.0)
+        if (vColor.w < 0.2)
             discard;
-        gl_FragColor = vec4(vColor.xyz / 255.0, 1.0 );
+        gl_FragColor = vColor;
     }
-
-    
 `;
+
+function fetchText(url){
+  var Httpreq = new XMLHttpRequest(); // a new request
+  Httpreq.open("GET",url,false);
+  Httpreq.send(null);
+  return Httpreq.responseText;          
+}
 
 // Main ARA code
 var vim3d = {
@@ -385,6 +402,8 @@ vim3d.view = function (options) {
         var cameraState = { position: {x:0,y:0,z:0}, rotation: {x:0,y:0,z:0}};
         var stats, gui, controls;
         var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
+        var ssaoPass, composer;
+
         var materialsLoaded = false;
         var objects = [];
         var throttledPublishMessage;
@@ -396,8 +415,14 @@ vim3d.view = function (options) {
             showStats: false,
             showGui: false,
             pubnub: false,
+            SSAO: { 
+              enable: true,
+              kernelRadius: 16,
+              minDistance: 0.005,
+              maxDistance: 0.1
+            },
             loader: {
-                computeVertexNormals: false,
+                computeVertexNormals: true,
             },
             camera: {
                 near: 0.1,
@@ -422,7 +447,7 @@ vim3d.view = function (options) {
             background: {
                 // color: { r: 0x72, g: 0x64, b: 0x5b, }
                 // color: { r: 215, g:217, b:215 }
-                color: { r: 255, g:255, b:255 }
+                color: { r: 125, g:125, b:125 }
             },
             plane: {
                 show: false,
@@ -447,7 +472,7 @@ vim3d.view = function (options) {
             },
             light1: {
                 // TODO: the positions of the lights are all wrong. 
-                position: { x: 1, y: 1, z: 1 },
+                direction: { x: 0.3, y: -0.75, z: 0.3 },
                 color: { r: 0xFF, g: 0xFF, b: 0xFF },
                 intensity: 1.35,
             },
@@ -485,13 +510,7 @@ vim3d.view = function (options) {
 
         // Initialization of scene, loading of objects, and launch animation loop
         init();
-        if (Array.isArray(settings.url)) {
-            for (var url of settings.url)
-                loadIntoScene(url);
-        }
-        else {
-            loadIntoScene(settings.url, settings.mtlurl);
-        }
+        loadFromSettings(settings.url, settings.mtlurl);
         animate();
         function isColor(obj) {
             return typeof (obj) === 'object' && 'r' in obj && 'g' in obj && 'b' in obj;
@@ -519,6 +538,21 @@ vim3d.view = function (options) {
             if ('shininess' in settings)
                 targetMaterial.shininess = settings.shininess;
                 */
+
+          var viewProj = material.uniforms.viewProjectionMatrix.value;
+          viewProj.copy(camera.projectionMatrix);
+          viewProj.multiply(camera.matrixWorldInverse);
+
+          var light1Direction = material.uniforms.lightDirection.value;
+          var value = ('light1' in settings)
+            ? new toVec(settings.light1.direction)
+            : new THREE.Vector3(0.5, -0.5, 0.3)
+          
+          light1Direction.copy(value.normalize());
+
+          material.uniforms.lightIntensity.value = ('light1' in settings)
+            ? settings.light1.intensity
+            : 1.0;
         }
         function initCamera() {
             updateCamera();
@@ -552,6 +586,16 @@ vim3d.view = function (options) {
             controls.zoomSpeed = settings.camera.controls.zoomSpeed;
             controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
         }
+
+        function updateSSAO() {
+          if (settings.SSAO.enable)
+          {
+            ssaoPass.kernelRadius = settings.SSAO.kernelRadius;
+            ssaoPass.minDistance = settings.SSAO.minDistance;
+            ssaoPass.maxDistance = settings.SSAO.maxDistance;  
+          }
+        }
+
         // Called every frame in case settings are updated 
         function updateScene() {
             scene.background = toColor(settings.background.color);
@@ -560,15 +604,15 @@ vim3d.view = function (options) {
             plane.visible = settings.plane.show;
             updateMaterial(plane.material, settings.plane.material);
             plane.position.copy(toVec(settings.plane.position));
-            light1.position.copy(toVec(settings.light1.position));
-            light1.color = toColor(settings.light1.color);
-            light1.intensity = settings.light1.intensity;
-            light2.position.copy(toVec(settings.light2.position));
-            light2.color = toColor(settings.light2.color);
-            light2.intensity = settings.light2.intensity;
-            sunlight.skyColor = toColor(settings.sunlight.skyColor);
-            sunlight.groundColor = toColor(settings.sunlight.groundColor);
-            sunlight.intensity = settings.sunlight.intensity;
+            // light1.position.copy(toVec(settings.light1.position));
+            // light1.color = toColor(settings.light1.color);
+            // light1.intensity = settings.light1.intensity;
+            // light2.position.copy(toVec(settings.light2.position));
+            // light2.color = toColor(settings.light2.color);
+            // light2.intensity = settings.light2.intensity;
+            // sunlight.skyColor = toColor(settings.sunlight.skyColor);
+            //sunlight.groundColor = toColor(settings.sunlight.groundColor);
+            //sunlight.intensity = settings.sunlight.intensity;
         }
         function updateObjects() {
             for (var child of objects) {
@@ -577,7 +621,7 @@ vim3d.view = function (options) {
                 var scale = scalarToVec(settings.object.scale);
                 child.scale.copy(scale);
                 if (!materialsLoaded) {
-                    updateMaterial(material, settings.object.material);
+                    updateMaterial(material, settings);
                     child.material = material;
                 }
                 child.position.copy(settings.object.position);
@@ -770,7 +814,6 @@ vim3d.view = function (options) {
             // Initialize the normalized moust position for ray-casting.
             mouse = new THREE.Vector2();
          
-            resizeCanvas(true);
             // Create scene object
             scene = new THREE.Scene();
 
@@ -807,28 +850,35 @@ vim3d.view = function (options) {
             // Lights
             sunlight = new THREE.HemisphereLight();
             scene.add(sunlight);
-            light1 = addShadowedLight(scene);
-            light2 = addShadowedLight(scene);
+            //light1 = addShadowedLight(scene);
+            //light2 = addShadowedLight(scene);
             // Material 
             
             //material = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
 
             material = new THREE.RawShaderMaterial( {
                 uniforms: {
-                    time: { value: 1.0 }
+                  lightDirection: { value: new THREE.Vector3() },
+                  lightIntensity: { value: 1.0 },
+                  viewProjectionMatrix: { value: new THREE.Matrix4() }
                 },
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
-                side: THREE.DoubleSide,
-                transparent: true
             } );
 
+            // postprocessing
+
+            composer = new THREE.EffectComposer(renderer);
+
+            ssaoPass = new THREE.SSAOPass( scene, camera );
+            ssaoPass.kernelRadius = 16;
+            composer.addPass( ssaoPass );
+            
             // THREE JS renderer
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.gammaInput = true;
-            renderer.gammaOutput = true;
-            renderer.shadowMap.enabled = true;
+
             // Initial scene update: happens if controls change 
+            resizeCanvas(true);
             updateScene();
 
             // Creates and updates camera controls 
@@ -885,6 +935,31 @@ vim3d.view = function (options) {
             vim3d.objects = objects;
         }
 
+        function loadFromSettings(url, mtlurl)
+        {
+          if (Array.isArray(url))
+          {
+            console.time("Loading Array: " + url);
+            toLoad = url.length;
+            url.forEach((url) => {
+              loadIntoScene(url, mtlurl, () => {
+                toLoad = toLoad - 1;
+                if (toLoad === 0) {
+                  console.timeEnd("Loading Array: " + url)
+                  console.log("\n --- Completed Load --- \n")
+                }
+              })
+            })
+          }
+          else {
+            console.time("Loading: " + url);
+            loadIntoScene(url, mtlurl, () => {
+              console.timeEnd("Loading: " + url)
+              console.log("\n --- Completed Load --- \n")
+            });  
+          }
+        }
+
         // Use this when in full frame mode.
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -913,6 +988,7 @@ vim3d.view = function (options) {
             var w = rect.width / window.devicePixelRatio;
             var h = rect.height / window.devicePixelRatio;
             renderer.setSize(w, h, false);
+            ssaoPass.setSize(rect.width, rect.height);
             // Set aspect ratio
             camera.aspect = canvas.width / canvas.height;
             camera.updateProjectionMatrix();
@@ -942,49 +1018,49 @@ vim3d.view = function (options) {
                 console.log("Is neither a Geometry nor a BufferGeometry");
             }
         }
-        function loadObject(obj) {
+        function loadObject(callback) {
+          return (obj) => {
             objects.push(obj);
             scene.add(obj);
-            console.timeEnd("Loading object");
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            //outputStats(g);
+            outputStats(g);
             g.computeBoundsTree();
+
             updateObjects();
+            if (callback)
+              callback();
+          }
         }
-        function loadIntoScene(fileName, mtlurl) {
+        function loadIntoScene(fileName, mtlurl, callback) {
             console.log("Loading object from " + fileName);
-            console.time("Loading object");
             var extPos = fileName.lastIndexOf(".");
             var ext = fileName.slice(extPos + 1).toLowerCase();
             switch (ext) {
                 case "3ds": {
                     var loader = new THREE.TDSLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "fbx": {
                     var loader = new THREE.FBXLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "dae": {
                     var loader = new THREE.ColladaLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "gltf": {
                     var loader = new THREE.GLTFLoader();
-                    loader.load(fileName, function (obj) {
-                        objects.push(obj.scene);
-                        scene.add(obj);
-                    });
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "gcode": {
                     var loader = new THREE.GCodeLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "obj": {
@@ -994,28 +1070,28 @@ vim3d.view = function (options) {
                         mtlLoader.load(mtlurl, function (mats) {
                             mats.preload();
                             materialsLoaded = true;
-                            objLoader_1.setMaterials(mats).load(fileName, loadObject);
+                            objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
                         }, null, function () {
                             console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
-                            objLoader_1.load(fileName, loadObject);
+                            objLoader_1.load(fileName, loadObject(callback));
                         });
                     }
                     else {
-                        objLoader_1.load(fileName, loadObject);
+                        objLoader_1.load(fileName, loadObject(callback));
                     }
                     return;
                 }
                 case "pcd": {
                     var loader = new THREE.PCDLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "ply": {
                     var loader = new THREE.PLYLoader();
                     loader.load(fileName, function (geometry) {
                         if (settings.loader.computeVertexNormals)
-                            geometry.computeVertexNormals();
-                        loadObject(new THREE.Mesh(geometry));
+                          geometry.computeVertexNormals();
+                        loadObject(callback)(new THREE.Mesh(geometry));
                     });
                     return;
                 }
@@ -1023,10 +1099,32 @@ vim3d.view = function (options) {
                     var loader = new THREE.STLLoader();
                     loader.load(fileName, function (geometry) {
                         if (settings.loader.computeVertexNormals)
-                            geometry.computeVertexNormals();
-                        loadObject(new THREE.Mesh(geometry));
+                          geometry.computeVertexNormals();
+                        loadObject(callback)(new THREE.Mesh(geometry));
                     });
                     return;
+                }
+                case "json": {
+                  var str = fetchText(fileName);
+                  var jsonData = JSON.parse(str);
+                  // We have been given a list of items to load, lets load 'em
+                  var entities = Object.keys(jsonData);
+                  var entitiesToLoad = entities.length;
+                  entities.forEach((entity, index) => {
+                    var url = jsonData[entity]
+                    console.time("Loading: " + entity);
+           
+                    loadIntoScene(url, mtlurl, () => {
+                      // Thank goodness there is no threading in JS :-)
+                      console.timeEnd("Loading: " + entity);
+
+                      entitiesToLoad = entitiesToLoad - 1;
+                      console.log(`Completed ${entitiesToLoad - entities.length}, ${entitiesToLoad} remaining`);
+                      if (callback && !entitiesToLoad)
+                        callback();
+                    });
+                  })
+                  return;
                 }
                 // HACK: Assume g3d as default case.
                 case "g3d":
@@ -1040,7 +1138,7 @@ vim3d.view = function (options) {
                         var name = fileName.substring(fileName.lastIndexOf('/')+1);
                         name = name.slice(0, -4);
                         mesh.name = name;
-                        loadObject(mesh);
+                        loadObject(callback)(mesh);
                     }, null, console.error);
                     return;
                 }
@@ -1154,10 +1252,18 @@ vim3d.view = function (options) {
             updateObjects();
             updateCamera();
             updateCameraControls();
+            updateSSAO();
             controls.update();
             rayCastTest();
             throttledPublishMessage();
-            renderer.render(scene, camera);
+
+            if (settings.SSAO.enable)
+            {
+              composer.render();
+            }
+            else {
+              renderer.render(scene, camera);
+            }
         }
     };
 

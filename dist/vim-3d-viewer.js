@@ -127,7 +127,7 @@ var PropList = /** @class */ (function () {
         configurable: true
     });
     PropList.prototype.find = function (name) {
-        return this.items.find(function (v) { return v.name === name; });
+        return this.items.find((v) => v.name === name );
     };
     return PropList;
 }());
@@ -326,6 +326,7 @@ function throttle(func, wait, options) {
         result = func.apply(context, args);
         if (!timeout) context = args = null;
       } else if (!timeout && options.trailing !== false) {
+        // deepcode ignore UseArrowFunction: <please specify a reason of ignoring this>
         timeout = setTimeout(later, remaining);
       }
       return result;
@@ -340,17 +341,28 @@ var vertexShader = `
 
     uniform mat4 modelViewMatrix; // optional
     uniform mat4 projectionMatrix; // optional
+    uniform mat3 normalMatrix;
 
+    //uniform mat4 viewProjectionMatrix;
+
+    uniform vec3 lightDirection;
+    uniform float lightIntensity;
+    
     attribute vec3 position;
+    attribute vec3 normal;
     attribute vec4 color;
 
-    varying vec3 vPosition;
     varying vec4 vColor;
 
     void main()	{
-        vPosition = position;
         vColor = color;
+
         gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        // This could be baked back into the mesh
+        // vec3 transformedNormal = normalMatrix * normal;
+        float dotNL = dot ( normal, lightDirection );
+        float colorMult = clamp(lightIntensity * (1.0 + dotNL) / 2.0, 0.0, 1.0) / 255.0;
+        vColor = color * colorMult;
     }
 `;
 
@@ -361,13 +373,18 @@ var fragmentShader = `
     varying vec4 vColor;
 
     void main()	{
-        if (vColor.w < 200.0)
+        if (vColor.w < 0.2)
             discard;
-        gl_FragColor = vec4(vColor.xyz / 255.0, 1.0 );
+        gl_FragColor = vColor;
     }
-
-    
 `;
+
+function fetchText(url){
+  var Httpreq = new XMLHttpRequest(); // a new request
+  Httpreq.open("GET",url,false);
+  Httpreq.send(null);
+  return Httpreq.responseText;          
+}
 
 // Main ARA code
 var vim3d = {
@@ -385,6 +402,8 @@ vim3d.view = function (options) {
         var cameraState = { position: {x:0,y:0,z:0}, rotation: {x:0,y:0,z:0}};
         var stats, gui, controls;
         var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
+        var ssaoPass, composer;
+
         var materialsLoaded = false;
         var objects = [];
         var throttledPublishMessage;
@@ -396,8 +415,14 @@ vim3d.view = function (options) {
             showStats: false,
             showGui: false,
             pubnub: false,
+            SSAO: { 
+              enable: true,
+              kernelRadius: 16,
+              minDistance: 0.005,
+              maxDistance: 0.1
+            },
             loader: {
-                computeVertexNormals: false,
+                computeVertexNormals: true,
             },
             camera: {
                 near: 0.1,
@@ -422,7 +447,7 @@ vim3d.view = function (options) {
             background: {
                 // color: { r: 0x72, g: 0x64, b: 0x5b, }
                 // color: { r: 215, g:217, b:215 }
-                color: { r: 255, g:255, b:255 }
+                color: { r: 125, g:125, b:125 }
             },
             plane: {
                 show: false,
@@ -447,7 +472,7 @@ vim3d.view = function (options) {
             },
             light1: {
                 // TODO: the positions of the lights are all wrong. 
-                position: { x: 1, y: 1, z: 1 },
+                direction: { x: 0.3, y: -0.75, z: 0.3 },
                 color: { r: 0xFF, g: 0xFF, b: 0xFF },
                 intensity: 1.35,
             },
@@ -485,13 +510,7 @@ vim3d.view = function (options) {
 
         // Initialization of scene, loading of objects, and launch animation loop
         init();
-        if (Array.isArray(settings.url)) {
-            for (var url of settings.url)
-                loadIntoScene(url);
-        }
-        else {
-            loadIntoScene(settings.url, settings.mtlurl);
-        }
+        loadFromSettings(settings.url, settings.mtlurl);
         animate();
         function isColor(obj) {
             return typeof (obj) === 'object' && 'r' in obj && 'g' in obj && 'b' in obj;
@@ -519,6 +538,21 @@ vim3d.view = function (options) {
             if ('shininess' in settings)
                 targetMaterial.shininess = settings.shininess;
                 */
+
+          var viewProj = material.uniforms.viewProjectionMatrix.value;
+          viewProj.copy(camera.projectionMatrix);
+          viewProj.multiply(camera.matrixWorldInverse);
+
+          var light1Direction = material.uniforms.lightDirection.value;
+          var value = ('light1' in settings)
+            ? new toVec(settings.light1.direction)
+            : new THREE.Vector3(0.5, -0.5, 0.3)
+          
+          light1Direction.copy(value.normalize());
+
+          material.uniforms.lightIntensity.value = ('light1' in settings)
+            ? settings.light1.intensity
+            : 1.0;
         }
         function initCamera() {
             updateCamera();
@@ -552,6 +586,16 @@ vim3d.view = function (options) {
             controls.zoomSpeed = settings.camera.controls.zoomSpeed;
             controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
         }
+
+        function updateSSAO() {
+          if (settings.SSAO.enable)
+          {
+            ssaoPass.kernelRadius = settings.SSAO.kernelRadius;
+            ssaoPass.minDistance = settings.SSAO.minDistance;
+            ssaoPass.maxDistance = settings.SSAO.maxDistance;  
+          }
+        }
+
         // Called every frame in case settings are updated 
         function updateScene() {
             scene.background = toColor(settings.background.color);
@@ -560,15 +604,15 @@ vim3d.view = function (options) {
             plane.visible = settings.plane.show;
             updateMaterial(plane.material, settings.plane.material);
             plane.position.copy(toVec(settings.plane.position));
-            light1.position.copy(toVec(settings.light1.position));
-            light1.color = toColor(settings.light1.color);
-            light1.intensity = settings.light1.intensity;
-            light2.position.copy(toVec(settings.light2.position));
-            light2.color = toColor(settings.light2.color);
-            light2.intensity = settings.light2.intensity;
-            sunlight.skyColor = toColor(settings.sunlight.skyColor);
-            sunlight.groundColor = toColor(settings.sunlight.groundColor);
-            sunlight.intensity = settings.sunlight.intensity;
+            // light1.position.copy(toVec(settings.light1.position));
+            // light1.color = toColor(settings.light1.color);
+            // light1.intensity = settings.light1.intensity;
+            // light2.position.copy(toVec(settings.light2.position));
+            // light2.color = toColor(settings.light2.color);
+            // light2.intensity = settings.light2.intensity;
+            // sunlight.skyColor = toColor(settings.sunlight.skyColor);
+            //sunlight.groundColor = toColor(settings.sunlight.groundColor);
+            //sunlight.intensity = settings.sunlight.intensity;
         }
         function updateObjects() {
             for (var child of objects) {
@@ -577,7 +621,7 @@ vim3d.view = function (options) {
                 var scale = scalarToVec(settings.object.scale);
                 child.scale.copy(scale);
                 if (!materialsLoaded) {
-                    updateMaterial(material, settings.object.material);
+                    updateMaterial(material, settings);
                     child.material = material;
                 }
                 child.position.copy(settings.object.position);
@@ -770,7 +814,6 @@ vim3d.view = function (options) {
             // Initialize the normalized moust position for ray-casting.
             mouse = new THREE.Vector2();
          
-            resizeCanvas(true);
             // Create scene object
             scene = new THREE.Scene();
 
@@ -807,28 +850,35 @@ vim3d.view = function (options) {
             // Lights
             sunlight = new THREE.HemisphereLight();
             scene.add(sunlight);
-            light1 = addShadowedLight(scene);
-            light2 = addShadowedLight(scene);
+            //light1 = addShadowedLight(scene);
+            //light2 = addShadowedLight(scene);
             // Material 
             
             //material = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
 
             material = new THREE.RawShaderMaterial( {
                 uniforms: {
-                    time: { value: 1.0 }
+                  lightDirection: { value: new THREE.Vector3() },
+                  lightIntensity: { value: 1.0 },
+                  viewProjectionMatrix: { value: new THREE.Matrix4() }
                 },
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
-                side: THREE.DoubleSide,
-                transparent: true
             } );
 
+            // postprocessing
+
+            composer = new THREE.EffectComposer(renderer);
+
+            ssaoPass = new THREE.SSAOPass( scene, camera );
+            ssaoPass.kernelRadius = 16;
+            composer.addPass( ssaoPass );
+            
             // THREE JS renderer
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.gammaInput = true;
-            renderer.gammaOutput = true;
-            renderer.shadowMap.enabled = true;
+
             // Initial scene update: happens if controls change 
+            resizeCanvas(true);
             updateScene();
 
             // Creates and updates camera controls 
@@ -885,6 +935,31 @@ vim3d.view = function (options) {
             vim3d.objects = objects;
         }
 
+        function loadFromSettings(url, mtlurl)
+        {
+          if (Array.isArray(url))
+          {
+            console.time("Loading Array: " + url);
+            toLoad = url.length;
+            url.forEach((url) => {
+              loadIntoScene(url, mtlurl, () => {
+                toLoad = toLoad - 1;
+                if (toLoad === 0) {
+                  console.timeEnd("Loading Array: " + url)
+                  console.log("\n --- Completed Load --- \n")
+                }
+              })
+            })
+          }
+          else {
+            console.time("Loading: " + url);
+            loadIntoScene(url, mtlurl, () => {
+              console.timeEnd("Loading: " + url)
+              console.log("\n --- Completed Load --- \n")
+            });  
+          }
+        }
+
         // Use this when in full frame mode.
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -913,6 +988,7 @@ vim3d.view = function (options) {
             var w = rect.width / window.devicePixelRatio;
             var h = rect.height / window.devicePixelRatio;
             renderer.setSize(w, h, false);
+            ssaoPass.setSize(rect.width, rect.height);
             // Set aspect ratio
             camera.aspect = canvas.width / canvas.height;
             camera.updateProjectionMatrix();
@@ -942,49 +1018,49 @@ vim3d.view = function (options) {
                 console.log("Is neither a Geometry nor a BufferGeometry");
             }
         }
-        function loadObject(obj) {
+        function loadObject(callback) {
+          return (obj) => {
             objects.push(obj);
             scene.add(obj);
-            console.timeEnd("Loading object");
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            //outputStats(g);
+            outputStats(g);
             g.computeBoundsTree();
+
             updateObjects();
+            if (callback)
+              callback();
+          }
         }
-        function loadIntoScene(fileName, mtlurl) {
+        function loadIntoScene(fileName, mtlurl, callback) {
             console.log("Loading object from " + fileName);
-            console.time("Loading object");
             var extPos = fileName.lastIndexOf(".");
             var ext = fileName.slice(extPos + 1).toLowerCase();
             switch (ext) {
                 case "3ds": {
                     var loader = new THREE.TDSLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "fbx": {
                     var loader = new THREE.FBXLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "dae": {
                     var loader = new THREE.ColladaLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "gltf": {
                     var loader = new THREE.GLTFLoader();
-                    loader.load(fileName, function (obj) {
-                        objects.push(obj.scene);
-                        scene.add(obj);
-                    });
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "gcode": {
                     var loader = new THREE.GCodeLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "obj": {
@@ -994,28 +1070,28 @@ vim3d.view = function (options) {
                         mtlLoader.load(mtlurl, function (mats) {
                             mats.preload();
                             materialsLoaded = true;
-                            objLoader_1.setMaterials(mats).load(fileName, loadObject);
+                            objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
                         }, null, function () {
                             console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
-                            objLoader_1.load(fileName, loadObject);
+                            objLoader_1.load(fileName, loadObject(callback));
                         });
                     }
                     else {
-                        objLoader_1.load(fileName, loadObject);
+                        objLoader_1.load(fileName, loadObject(callback));
                     }
                     return;
                 }
                 case "pcd": {
                     var loader = new THREE.PCDLoader();
-                    loader.load(fileName, loadObject);
+                    loader.load(fileName, loadObject(callback));
                     return;
                 }
                 case "ply": {
                     var loader = new THREE.PLYLoader();
                     loader.load(fileName, function (geometry) {
                         if (settings.loader.computeVertexNormals)
-                            geometry.computeVertexNormals();
-                        loadObject(new THREE.Mesh(geometry));
+                          geometry.computeVertexNormals();
+                        loadObject(callback)(new THREE.Mesh(geometry));
                     });
                     return;
                 }
@@ -1023,10 +1099,32 @@ vim3d.view = function (options) {
                     var loader = new THREE.STLLoader();
                     loader.load(fileName, function (geometry) {
                         if (settings.loader.computeVertexNormals)
-                            geometry.computeVertexNormals();
-                        loadObject(new THREE.Mesh(geometry));
+                          geometry.computeVertexNormals();
+                        loadObject(callback)(new THREE.Mesh(geometry));
                     });
                     return;
+                }
+                case "json": {
+                  var str = fetchText(fileName);
+                  var jsonData = JSON.parse(str);
+                  // We have been given a list of items to load, lets load 'em
+                  var entities = Object.keys(jsonData);
+                  var entitiesToLoad = entities.length;
+                  entities.forEach((entity, index) => {
+                    var url = jsonData[entity]
+                    console.time("Loading: " + entity);
+           
+                    loadIntoScene(url, mtlurl, () => {
+                      // Thank goodness there is no threading in JS :-)
+                      console.timeEnd("Loading: " + entity);
+
+                      entitiesToLoad = entitiesToLoad - 1;
+                      console.log(`Completed ${entitiesToLoad - entities.length}, ${entitiesToLoad} remaining`);
+                      if (callback && !entitiesToLoad)
+                        callback();
+                    });
+                  })
+                  return;
                 }
                 // HACK: Assume g3d as default case.
                 case "g3d":
@@ -1040,7 +1138,7 @@ vim3d.view = function (options) {
                         var name = fileName.substring(fileName.lastIndexOf('/')+1);
                         name = name.slice(0, -4);
                         mesh.name = name;
-                        loadObject(mesh);
+                        loadObject(callback)(mesh);
                     }, null, console.error);
                     return;
                 }
@@ -1154,10 +1252,18 @@ vim3d.view = function (options) {
             updateObjects();
             updateCamera();
             updateCameraControls();
+            updateSSAO();
             controls.update();
             rayCastTest();
             throttledPublishMessage();
-            renderer.render(scene, camera);
+
+            if (settings.SSAO.enable)
+            {
+              composer.render();
+            }
+            else {
+              renderer.render(scene, camera);
+            }
         }
     };
 
@@ -55853,6 +55959,1525 @@ THREE.TrackballControls.prototype = Object.create( THREE.EventDispatcher.prototy
 THREE.TrackballControls.prototype.constructor = THREE.TrackballControls;
 
 ;/**
+ * @author alteredq / http://alteredqualia.com/
+ *
+ * Full-screen textured quad shader
+ */
+
+THREE.CopyShader = {
+
+	uniforms: {
+
+		"tDiffuse": { value: null },
+		"opacity": { value: 1.0 }
+
+	},
+
+	vertexShader: [
+
+		"varying vec2 vUv;",
+
+		"void main() {",
+
+		"	vUv = uv;",
+		"	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+
+		"}"
+
+	].join( "\n" ),
+
+	fragmentShader: [
+
+		"uniform float opacity;",
+
+		"uniform sampler2D tDiffuse;",
+
+		"varying vec2 vUv;",
+
+		"void main() {",
+
+		"	vec4 texel = texture2D( tDiffuse, vUv );",
+		"	gl_FragColor = opacity * texel;",
+
+		"}"
+
+	].join( "\n" )
+
+};
+
+;/**
+ * @author alteredq / http://alteredqualia.com/
+ */
+
+THREE.EffectComposer = function ( renderer, renderTarget ) {
+
+	this.renderer = renderer;
+
+	if ( renderTarget === undefined ) {
+
+		var parameters = {
+			minFilter: THREE.LinearFilter,
+			magFilter: THREE.LinearFilter,
+			format: THREE.RGBAFormat,
+			stencilBuffer: false
+		};
+
+		var size = renderer.getSize( new THREE.Vector2() );
+		this._pixelRatio = renderer.getPixelRatio();
+		this._width = size.width;
+		this._height = size.height;
+
+		renderTarget = new THREE.WebGLRenderTarget( this._width * this._pixelRatio, this._height * this._pixelRatio, parameters );
+		renderTarget.texture.name = 'EffectComposer.rt1';
+
+	} else {
+
+		this._pixelRatio = 1;
+		this._width = renderTarget.width;
+		this._height = renderTarget.height;
+
+	}
+
+	this.renderTarget1 = renderTarget;
+	this.renderTarget2 = renderTarget.clone();
+	this.renderTarget2.texture.name = 'EffectComposer.rt2';
+
+	this.writeBuffer = this.renderTarget1;
+	this.readBuffer = this.renderTarget2;
+
+	this.renderToScreen = true;
+
+	this.passes = [];
+
+	// dependencies
+
+	if ( THREE.CopyShader === undefined ) {
+
+		console.error( 'THREE.EffectComposer relies on THREE.CopyShader' );
+
+	}
+
+	if ( THREE.ShaderPass === undefined ) {
+
+		console.error( 'THREE.EffectComposer relies on THREE.ShaderPass' );
+
+	}
+
+	this.copyPass = new THREE.ShaderPass( THREE.CopyShader );
+
+	this.clock = new THREE.Clock();
+
+};
+
+Object.assign( THREE.EffectComposer.prototype, {
+
+	swapBuffers: function () {
+
+		var tmp = this.readBuffer;
+		this.readBuffer = this.writeBuffer;
+		this.writeBuffer = tmp;
+
+	},
+
+	addPass: function ( pass ) {
+
+		this.passes.push( pass );
+		pass.setSize( this._width * this._pixelRatio, this._height * this._pixelRatio );
+
+	},
+
+	insertPass: function ( pass, index ) {
+
+		this.passes.splice( index, 0, pass );
+
+	},
+
+	isLastEnabledPass: function ( passIndex ) {
+
+		for ( var i = passIndex + 1; i < this.passes.length; i ++ ) {
+
+			if ( this.passes[ i ].enabled ) {
+
+				return false;
+
+			}
+
+		}
+
+		return true;
+
+	},
+
+	render: function ( deltaTime ) {
+
+		// deltaTime value is in seconds
+
+		if ( deltaTime === undefined ) {
+
+			deltaTime = this.clock.getDelta();
+
+		}
+
+		var currentRenderTarget = this.renderer.getRenderTarget();
+
+		var maskActive = false;
+
+		var pass, i, il = this.passes.length;
+
+		for ( i = 0; i < il; i ++ ) {
+
+			pass = this.passes[ i ];
+
+			if ( pass.enabled === false ) continue;
+
+			pass.renderToScreen = ( this.renderToScreen && this.isLastEnabledPass( i ) );
+			pass.render( this.renderer, this.writeBuffer, this.readBuffer, deltaTime, maskActive );
+
+			if ( pass.needsSwap ) {
+
+				if ( maskActive ) {
+
+					var context = this.renderer.getContext();
+					var stencil = this.renderer.state.buffers.stencil;
+
+					//context.stencilFunc( context.NOTEQUAL, 1, 0xffffffff );
+					stencil.setFunc( context.NOTEQUAL, 1, 0xffffffff );
+
+					this.copyPass.render( this.renderer, this.writeBuffer, this.readBuffer, deltaTime );
+
+					//context.stencilFunc( context.EQUAL, 1, 0xffffffff );
+					stencil.setFunc( context.EQUAL, 1, 0xffffffff );
+
+				}
+
+				this.swapBuffers();
+
+			}
+
+			if ( THREE.MaskPass !== undefined ) {
+
+				if ( pass instanceof THREE.MaskPass ) {
+
+					maskActive = true;
+
+				} else if ( pass instanceof THREE.ClearMaskPass ) {
+
+					maskActive = false;
+
+				}
+
+			}
+
+		}
+
+		this.renderer.setRenderTarget( currentRenderTarget );
+
+	},
+
+	reset: function ( renderTarget ) {
+
+		if ( renderTarget === undefined ) {
+
+			var size = this.renderer.getSize( new THREE.Vector2() );
+			this._pixelRatio = this.renderer.getPixelRatio();
+			this._width = size.width;
+			this._height = size.height;
+
+			renderTarget = this.renderTarget1.clone();
+			renderTarget.setSize( this._width * this._pixelRatio, this._height * this._pixelRatio );
+
+		}
+
+		this.renderTarget1.dispose();
+		this.renderTarget2.dispose();
+		this.renderTarget1 = renderTarget;
+		this.renderTarget2 = renderTarget.clone();
+
+		this.writeBuffer = this.renderTarget1;
+		this.readBuffer = this.renderTarget2;
+
+	},
+
+	setSize: function ( width, height ) {
+
+		this._width = width;
+		this._height = height;
+
+		var effectiveWidth = this._width * this._pixelRatio;
+		var effectiveHeight = this._height * this._pixelRatio;
+
+		this.renderTarget1.setSize( effectiveWidth, effectiveHeight );
+		this.renderTarget2.setSize( effectiveWidth, effectiveHeight );
+
+		for ( var i = 0; i < this.passes.length; i ++ ) {
+
+			this.passes[ i ].setSize( effectiveWidth, effectiveHeight );
+
+		}
+
+	},
+
+	setPixelRatio: function ( pixelRatio ) {
+
+		this._pixelRatio = pixelRatio;
+
+		this.setSize( this._width, this._height );
+
+	}
+
+} );
+
+
+THREE.Pass = function () {
+
+	// if set to true, the pass is processed by the composer
+	this.enabled = true;
+
+	// if set to true, the pass indicates to swap read and write buffer after rendering
+	this.needsSwap = true;
+
+	// if set to true, the pass clears its buffer before rendering
+	this.clear = false;
+
+	// if set to true, the result of the pass is rendered to screen. This is set automatically by EffectComposer.
+	this.renderToScreen = false;
+
+};
+
+Object.assign( THREE.Pass.prototype, {
+
+	setSize: function ( /* width, height */ ) {},
+
+	render: function ( /* renderer, writeBuffer, readBuffer, deltaTime, maskActive */ ) {
+
+		console.error( 'THREE.Pass: .render() must be implemented in derived pass.' );
+
+	}
+
+} );
+
+// Helper for passes that need to fill the viewport with a single quad.
+THREE.Pass.FullScreenQuad = ( function () {
+
+	var camera = new THREE.OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
+	var geometry = new THREE.PlaneBufferGeometry( 2, 2 );
+
+	var FullScreenQuad = function ( material ) {
+
+		this._mesh = new THREE.Mesh( geometry, material );
+
+	};
+
+	Object.defineProperty( FullScreenQuad.prototype, 'material', {
+
+		get: function () {
+
+			return this._mesh.material;
+
+		},
+
+		set: function ( value ) {
+
+			this._mesh.material = value;
+
+		}
+
+	} );
+
+	Object.assign( FullScreenQuad.prototype, {
+
+		dispose: function () {
+
+			this._mesh.geometry.dispose();
+
+		},
+
+		render: function ( renderer ) {
+
+			renderer.render( this._mesh, camera );
+
+		}
+
+	} );
+
+	return FullScreenQuad;
+
+} )();
+
+;/**
+ * @author alteredq / http://alteredqualia.com/
+ */
+
+THREE.ShaderPass = function ( shader, textureID ) {
+
+	THREE.Pass.call( this );
+
+	this.textureID = ( textureID !== undefined ) ? textureID : "tDiffuse";
+
+	if ( shader instanceof THREE.ShaderMaterial ) {
+
+		this.uniforms = shader.uniforms;
+
+		this.material = shader;
+
+	} else if ( shader ) {
+
+		this.uniforms = THREE.UniformsUtils.clone( shader.uniforms );
+
+		this.material = new THREE.ShaderMaterial( {
+
+			defines: Object.assign( {}, shader.defines ),
+			uniforms: this.uniforms,
+			vertexShader: shader.vertexShader,
+			fragmentShader: shader.fragmentShader
+
+		} );
+
+	}
+
+	this.fsQuad = new THREE.Pass.FullScreenQuad( this.material );
+
+};
+
+THREE.ShaderPass.prototype = Object.assign( Object.create( THREE.Pass.prototype ), {
+
+	constructor: THREE.ShaderPass,
+
+	render: function ( renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+
+		if ( this.uniforms[ this.textureID ] ) {
+
+			this.uniforms[ this.textureID ].value = readBuffer.texture;
+
+		}
+
+		this.fsQuad.material = this.material;
+
+		if ( this.renderToScreen ) {
+
+			renderer.setRenderTarget( null );
+			this.fsQuad.render( renderer );
+
+		} else {
+
+			renderer.setRenderTarget( writeBuffer );
+			// TODO: Avoid using autoClear properties, see https://github.com/mrdoob/three.js/pull/15571#issuecomment-465669600
+			if ( this.clear ) renderer.clear( renderer.autoClearColor, renderer.autoClearDepth, renderer.autoClearStencil );
+			this.fsQuad.render( renderer );
+
+		}
+
+	}
+
+} );
+
+;// Ported from Stefan Gustavson's java implementation
+// http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf
+// Read Stefan's excellent paper for details on how this code works.
+//
+// Sean McCullough banksean@gmail.com
+//
+// Added 4D noise
+// Joshua Koo zz85nus@gmail.com
+
+/**
+ * You can pass in a random number generator object if you like.
+ * It is assumed to have a random() method.
+ */
+THREE.SimplexNoise = function ( r ) {
+
+	if ( r == undefined ) r = Math;
+	this.grad3 = [[ 1, 1, 0 ], [ - 1, 1, 0 ], [ 1, - 1, 0 ], [ - 1, - 1, 0 ],
+		[ 1, 0, 1 ], [ - 1, 0, 1 ], [ 1, 0, - 1 ], [ - 1, 0, - 1 ],
+		[ 0, 1, 1 ], [ 0, - 1, 1 ], [ 0, 1, - 1 ], [ 0, - 1, - 1 ]];
+
+	this.grad4 = [[ 0, 1, 1, 1 ], [ 0, 1, 1, - 1 ], [ 0, 1, - 1, 1 ], [ 0, 1, - 1, - 1 ],
+	     [ 0, - 1, 1, 1 ], [ 0, - 1, 1, - 1 ], [ 0, - 1, - 1, 1 ], [ 0, - 1, - 1, - 1 ],
+	     [ 1, 0, 1, 1 ], [ 1, 0, 1, - 1 ], [ 1, 0, - 1, 1 ], [ 1, 0, - 1, - 1 ],
+	     [ - 1, 0, 1, 1 ], [ - 1, 0, 1, - 1 ], [ - 1, 0, - 1, 1 ], [ - 1, 0, - 1, - 1 ],
+	     [ 1, 1, 0, 1 ], [ 1, 1, 0, - 1 ], [ 1, - 1, 0, 1 ], [ 1, - 1, 0, - 1 ],
+	     [ - 1, 1, 0, 1 ], [ - 1, 1, 0, - 1 ], [ - 1, - 1, 0, 1 ], [ - 1, - 1, 0, - 1 ],
+	     [ 1, 1, 1, 0 ], [ 1, 1, - 1, 0 ], [ 1, - 1, 1, 0 ], [ 1, - 1, - 1, 0 ],
+	     [ - 1, 1, 1, 0 ], [ - 1, 1, - 1, 0 ], [ - 1, - 1, 1, 0 ], [ - 1, - 1, - 1, 0 ]];
+
+	this.p = [];
+	for ( var i = 0; i < 256; i ++ ) {
+
+		this.p[ i ] = Math.floor( r.random() * 256 );
+
+	}
+	// To remove the need for index wrapping, double the permutation table length
+	this.perm = [];
+	for ( var i = 0; i < 512; i ++ ) {
+
+		this.perm[ i ] = this.p[ i & 255 ];
+
+	}
+
+	// A lookup table to traverse the simplex around a given point in 4D.
+	// Details can be found where this table is used, in the 4D noise method.
+	this.simplex = [
+		[ 0, 1, 2, 3 ], [ 0, 1, 3, 2 ], [ 0, 0, 0, 0 ], [ 0, 2, 3, 1 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 1, 2, 3, 0 ],
+		[ 0, 2, 1, 3 ], [ 0, 0, 0, 0 ], [ 0, 3, 1, 2 ], [ 0, 3, 2, 1 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 1, 3, 2, 0 ],
+		[ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ],
+		[ 1, 2, 0, 3 ], [ 0, 0, 0, 0 ], [ 1, 3, 0, 2 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 2, 3, 0, 1 ], [ 2, 3, 1, 0 ],
+		[ 1, 0, 2, 3 ], [ 1, 0, 3, 2 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 2, 0, 3, 1 ], [ 0, 0, 0, 0 ], [ 2, 1, 3, 0 ],
+		[ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ],
+		[ 2, 0, 1, 3 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 3, 0, 1, 2 ], [ 3, 0, 2, 1 ], [ 0, 0, 0, 0 ], [ 3, 1, 2, 0 ],
+		[ 2, 1, 0, 3 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ], [ 3, 1, 0, 2 ], [ 0, 0, 0, 0 ], [ 3, 2, 0, 1 ], [ 3, 2, 1, 0 ]];
+
+};
+
+THREE.SimplexNoise.prototype.dot = function ( g, x, y ) {
+
+	return g[ 0 ] * x + g[ 1 ] * y;
+
+};
+
+THREE.SimplexNoise.prototype.dot3 = function ( g, x, y, z ) {
+
+	return g[ 0 ] * x + g[ 1 ] * y + g[ 2 ] * z;
+
+};
+
+THREE.SimplexNoise.prototype.dot4 = function ( g, x, y, z, w ) {
+
+	return g[ 0 ] * x + g[ 1 ] * y + g[ 2 ] * z + g[ 3 ] * w;
+
+};
+
+THREE.SimplexNoise.prototype.noise = function ( xin, yin ) {
+
+	var n0, n1, n2; // Noise contributions from the three corners
+	// Skew the input space to determine which simplex cell we're in
+	var F2 = 0.5 * ( Math.sqrt( 3.0 ) - 1.0 );
+	var s = ( xin + yin ) * F2; // Hairy factor for 2D
+	var i = Math.floor( xin + s );
+	var j = Math.floor( yin + s );
+	var G2 = ( 3.0 - Math.sqrt( 3.0 ) ) / 6.0;
+	var t = ( i + j ) * G2;
+	var X0 = i - t; // Unskew the cell origin back to (x,y) space
+	var Y0 = j - t;
+	var x0 = xin - X0; // The x,y distances from the cell origin
+	var y0 = yin - Y0;
+	// For the 2D case, the simplex shape is an equilateral triangle.
+	// Determine which simplex we are in.
+	var i1, j1; // Offsets for second (middle) corner of simplex in (i,j) coords
+	if ( x0 > y0 ) {
+
+		i1 = 1; j1 = 0;
+
+		// lower triangle, XY order: (0,0)->(1,0)->(1,1)
+
+	}	else {
+
+		i1 = 0; j1 = 1;
+
+	} // upper triangle, YX order: (0,0)->(0,1)->(1,1)
+	// A step of (1,0) in (i,j) means a step of (1-c,-c) in (x,y), and
+	// a step of (0,1) in (i,j) means a step of (-c,1-c) in (x,y), where
+	// c = (3-sqrt(3))/6
+	var x1 = x0 - i1 + G2; // Offsets for middle corner in (x,y) unskewed coords
+	var y1 = y0 - j1 + G2;
+	var x2 = x0 - 1.0 + 2.0 * G2; // Offsets for last corner in (x,y) unskewed coords
+	var y2 = y0 - 1.0 + 2.0 * G2;
+	// Work out the hashed gradient indices of the three simplex corners
+	var ii = i & 255;
+	var jj = j & 255;
+	var gi0 = this.perm[ ii + this.perm[ jj ] ] % 12;
+	var gi1 = this.perm[ ii + i1 + this.perm[ jj + j1 ] ] % 12;
+	var gi2 = this.perm[ ii + 1 + this.perm[ jj + 1 ] ] % 12;
+	// Calculate the contribution from the three corners
+	var t0 = 0.5 - x0 * x0 - y0 * y0;
+	if ( t0 < 0 ) n0 = 0.0;
+	else {
+
+		t0 *= t0;
+		n0 = t0 * t0 * this.dot( this.grad3[ gi0 ], x0, y0 ); // (x,y) of grad3 used for 2D gradient
+
+	}
+	var t1 = 0.5 - x1 * x1 - y1 * y1;
+	if ( t1 < 0 ) n1 = 0.0;
+	else {
+
+		t1 *= t1;
+		n1 = t1 * t1 * this.dot( this.grad3[ gi1 ], x1, y1 );
+
+	}
+	var t2 = 0.5 - x2 * x2 - y2 * y2;
+	if ( t2 < 0 ) n2 = 0.0;
+	else {
+
+		t2 *= t2;
+		n2 = t2 * t2 * this.dot( this.grad3[ gi2 ], x2, y2 );
+
+	}
+	// Add contributions from each corner to get the final noise value.
+	// The result is scaled to return values in the interval [-1,1].
+	return 70.0 * ( n0 + n1 + n2 );
+
+};
+
+// 3D simplex noise
+THREE.SimplexNoise.prototype.noise3d = function ( xin, yin, zin ) {
+
+	var n0, n1, n2, n3; // Noise contributions from the four corners
+	// Skew the input space to determine which simplex cell we're in
+	var F3 = 1.0 / 3.0;
+	var s = ( xin + yin + zin ) * F3; // Very nice and simple skew factor for 3D
+	var i = Math.floor( xin + s );
+	var j = Math.floor( yin + s );
+	var k = Math.floor( zin + s );
+	var G3 = 1.0 / 6.0; // Very nice and simple unskew factor, too
+	var t = ( i + j + k ) * G3;
+	var X0 = i - t; // Unskew the cell origin back to (x,y,z) space
+	var Y0 = j - t;
+	var Z0 = k - t;
+	var x0 = xin - X0; // The x,y,z distances from the cell origin
+	var y0 = yin - Y0;
+	var z0 = zin - Z0;
+	// For the 3D case, the simplex shape is a slightly irregular tetrahedron.
+	// Determine which simplex we are in.
+	var i1, j1, k1; // Offsets for second corner of simplex in (i,j,k) coords
+	var i2, j2, k2; // Offsets for third corner of simplex in (i,j,k) coords
+	if ( x0 >= y0 ) {
+
+		if ( y0 >= z0 ) {
+
+			i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
+
+			// X Y Z order
+
+		} else if ( x0 >= z0 ) {
+
+			i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1;
+
+			// X Z Y order
+
+		} else {
+
+			i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1;
+
+		} // Z X Y order
+
+	} else { // x0<y0
+
+		if ( y0 < z0 ) {
+
+			i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1;
+
+			// Z Y X order
+
+		} else if ( x0 < z0 ) {
+
+			i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1;
+
+			// Y Z X order
+
+		} else {
+
+			i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
+
+		} // Y X Z order
+
+	}
+	// A step of (1,0,0) in (i,j,k) means a step of (1-c,-c,-c) in (x,y,z),
+	// a step of (0,1,0) in (i,j,k) means a step of (-c,1-c,-c) in (x,y,z), and
+	// a step of (0,0,1) in (i,j,k) means a step of (-c,-c,1-c) in (x,y,z), where
+	// c = 1/6.
+	var x1 = x0 - i1 + G3; // Offsets for second corner in (x,y,z) coords
+	var y1 = y0 - j1 + G3;
+	var z1 = z0 - k1 + G3;
+	var x2 = x0 - i2 + 2.0 * G3; // Offsets for third corner in (x,y,z) coords
+	var y2 = y0 - j2 + 2.0 * G3;
+	var z2 = z0 - k2 + 2.0 * G3;
+	var x3 = x0 - 1.0 + 3.0 * G3; // Offsets for last corner in (x,y,z) coords
+	var y3 = y0 - 1.0 + 3.0 * G3;
+	var z3 = z0 - 1.0 + 3.0 * G3;
+	// Work out the hashed gradient indices of the four simplex corners
+	var ii = i & 255;
+	var jj = j & 255;
+	var kk = k & 255;
+	var gi0 = this.perm[ ii + this.perm[ jj + this.perm[ kk ] ] ] % 12;
+	var gi1 = this.perm[ ii + i1 + this.perm[ jj + j1 + this.perm[ kk + k1 ] ] ] % 12;
+	var gi2 = this.perm[ ii + i2 + this.perm[ jj + j2 + this.perm[ kk + k2 ] ] ] % 12;
+	var gi3 = this.perm[ ii + 1 + this.perm[ jj + 1 + this.perm[ kk + 1 ] ] ] % 12;
+	// Calculate the contribution from the four corners
+	var t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0;
+	if ( t0 < 0 ) n0 = 0.0;
+	else {
+
+		t0 *= t0;
+		n0 = t0 * t0 * this.dot3( this.grad3[ gi0 ], x0, y0, z0 );
+
+	}
+	var t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1;
+	if ( t1 < 0 ) n1 = 0.0;
+	else {
+
+		t1 *= t1;
+		n1 = t1 * t1 * this.dot3( this.grad3[ gi1 ], x1, y1, z1 );
+
+	}
+	var t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2;
+	if ( t2 < 0 ) n2 = 0.0;
+	else {
+
+		t2 *= t2;
+		n2 = t2 * t2 * this.dot3( this.grad3[ gi2 ], x2, y2, z2 );
+
+	}
+	var t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3;
+	if ( t3 < 0 ) n3 = 0.0;
+	else {
+
+		t3 *= t3;
+		n3 = t3 * t3 * this.dot3( this.grad3[ gi3 ], x3, y3, z3 );
+
+	}
+	// Add contributions from each corner to get the final noise value.
+	// The result is scaled to stay just inside [-1,1]
+	return 32.0 * ( n0 + n1 + n2 + n3 );
+
+};
+
+// 4D simplex noise
+THREE.SimplexNoise.prototype.noise4d = function ( x, y, z, w ) {
+
+	// For faster and easier lookups
+	var grad4 = this.grad4;
+	var simplex = this.simplex;
+	var perm = this.perm;
+
+	// The skewing and unskewing factors are hairy again for the 4D case
+	var F4 = ( Math.sqrt( 5.0 ) - 1.0 ) / 4.0;
+	var G4 = ( 5.0 - Math.sqrt( 5.0 ) ) / 20.0;
+	var n0, n1, n2, n3, n4; // Noise contributions from the five corners
+	// Skew the (x,y,z,w) space to determine which cell of 24 simplices we're in
+	var s = ( x + y + z + w ) * F4; // Factor for 4D skewing
+	var i = Math.floor( x + s );
+	var j = Math.floor( y + s );
+	var k = Math.floor( z + s );
+	var l = Math.floor( w + s );
+	var t = ( i + j + k + l ) * G4; // Factor for 4D unskewing
+	var X0 = i - t; // Unskew the cell origin back to (x,y,z,w) space
+	var Y0 = j - t;
+	var Z0 = k - t;
+	var W0 = l - t;
+	var x0 = x - X0; // The x,y,z,w distances from the cell origin
+	var y0 = y - Y0;
+	var z0 = z - Z0;
+	var w0 = w - W0;
+
+	// For the 4D case, the simplex is a 4D shape I won't even try to describe.
+	// To find out which of the 24 possible simplices we're in, we need to
+	// determine the magnitude ordering of x0, y0, z0 and w0.
+	// The method below is a good way of finding the ordering of x,y,z,w and
+	// then find the correct traversal order for the simplex we’re in.
+	// First, six pair-wise comparisons are performed between each possible pair
+	// of the four coordinates, and the results are used to add up binary bits
+	// for an integer index.
+	var c1 = ( x0 > y0 ) ? 32 : 0;
+	var c2 = ( x0 > z0 ) ? 16 : 0;
+	var c3 = ( y0 > z0 ) ? 8 : 0;
+	var c4 = ( x0 > w0 ) ? 4 : 0;
+	var c5 = ( y0 > w0 ) ? 2 : 0;
+	var c6 = ( z0 > w0 ) ? 1 : 0;
+	var c = c1 + c2 + c3 + c4 + c5 + c6;
+	var i1, j1, k1, l1; // The integer offsets for the second simplex corner
+	var i2, j2, k2, l2; // The integer offsets for the third simplex corner
+	var i3, j3, k3, l3; // The integer offsets for the fourth simplex corner
+	// simplex[c] is a 4-vector with the numbers 0, 1, 2 and 3 in some order.
+	// Many values of c will never occur, since e.g. x>y>z>w makes x<z, y<w and x<w
+	// impossible. Only the 24 indices which have non-zero entries make any sense.
+	// We use a thresholding to set the coordinates in turn from the largest magnitude.
+	// The number 3 in the "simplex" array is at the position of the largest coordinate.
+	i1 = simplex[ c ][ 0 ] >= 3 ? 1 : 0;
+	j1 = simplex[ c ][ 1 ] >= 3 ? 1 : 0;
+	k1 = simplex[ c ][ 2 ] >= 3 ? 1 : 0;
+	l1 = simplex[ c ][ 3 ] >= 3 ? 1 : 0;
+	// The number 2 in the "simplex" array is at the second largest coordinate.
+	i2 = simplex[ c ][ 0 ] >= 2 ? 1 : 0;
+	j2 = simplex[ c ][ 1 ] >= 2 ? 1 : 0; k2 = simplex[ c ][ 2 ] >= 2 ? 1 : 0;
+	l2 = simplex[ c ][ 3 ] >= 2 ? 1 : 0;
+	// The number 1 in the "simplex" array is at the second smallest coordinate.
+	i3 = simplex[ c ][ 0 ] >= 1 ? 1 : 0;
+	j3 = simplex[ c ][ 1 ] >= 1 ? 1 : 0;
+	k3 = simplex[ c ][ 2 ] >= 1 ? 1 : 0;
+	l3 = simplex[ c ][ 3 ] >= 1 ? 1 : 0;
+	// The fifth corner has all coordinate offsets = 1, so no need to look that up.
+	var x1 = x0 - i1 + G4; // Offsets for second corner in (x,y,z,w) coords
+	var y1 = y0 - j1 + G4;
+	var z1 = z0 - k1 + G4;
+	var w1 = w0 - l1 + G4;
+	var x2 = x0 - i2 + 2.0 * G4; // Offsets for third corner in (x,y,z,w) coords
+	var y2 = y0 - j2 + 2.0 * G4;
+	var z2 = z0 - k2 + 2.0 * G4;
+	var w2 = w0 - l2 + 2.0 * G4;
+	var x3 = x0 - i3 + 3.0 * G4; // Offsets for fourth corner in (x,y,z,w) coords
+	var y3 = y0 - j3 + 3.0 * G4;
+	var z3 = z0 - k3 + 3.0 * G4;
+	var w3 = w0 - l3 + 3.0 * G4;
+	var x4 = x0 - 1.0 + 4.0 * G4; // Offsets for last corner in (x,y,z,w) coords
+	var y4 = y0 - 1.0 + 4.0 * G4;
+	var z4 = z0 - 1.0 + 4.0 * G4;
+	var w4 = w0 - 1.0 + 4.0 * G4;
+	// Work out the hashed gradient indices of the five simplex corners
+	var ii = i & 255;
+	var jj = j & 255;
+	var kk = k & 255;
+	var ll = l & 255;
+	var gi0 = perm[ ii + perm[ jj + perm[ kk + perm[ ll ] ] ] ] % 32;
+	var gi1 = perm[ ii + i1 + perm[ jj + j1 + perm[ kk + k1 + perm[ ll + l1 ] ] ] ] % 32;
+	var gi2 = perm[ ii + i2 + perm[ jj + j2 + perm[ kk + k2 + perm[ ll + l2 ] ] ] ] % 32;
+	var gi3 = perm[ ii + i3 + perm[ jj + j3 + perm[ kk + k3 + perm[ ll + l3 ] ] ] ] % 32;
+	var gi4 = perm[ ii + 1 + perm[ jj + 1 + perm[ kk + 1 + perm[ ll + 1 ] ] ] ] % 32;
+	// Calculate the contribution from the five corners
+	var t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0 - w0 * w0;
+	if ( t0 < 0 ) n0 = 0.0;
+	else {
+
+		t0 *= t0;
+		n0 = t0 * t0 * this.dot4( grad4[ gi0 ], x0, y0, z0, w0 );
+
+	}
+	var t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1 - w1 * w1;
+	if ( t1 < 0 ) n1 = 0.0;
+	else {
+
+		t1 *= t1;
+		n1 = t1 * t1 * this.dot4( grad4[ gi1 ], x1, y1, z1, w1 );
+
+	}
+	var t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2 - w2 * w2;
+	if ( t2 < 0 ) n2 = 0.0;
+	else {
+
+		t2 *= t2;
+		n2 = t2 * t2 * this.dot4( grad4[ gi2 ], x2, y2, z2, w2 );
+
+	} var t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3 - w3 * w3;
+	if ( t3 < 0 ) n3 = 0.0;
+	else {
+
+		t3 *= t3;
+		n3 = t3 * t3 * this.dot4( grad4[ gi3 ], x3, y3, z3, w3 );
+
+	}
+	var t4 = 0.6 - x4 * x4 - y4 * y4 - z4 * z4 - w4 * w4;
+	if ( t4 < 0 ) n4 = 0.0;
+	else {
+
+		t4 *= t4;
+		n4 = t4 * t4 * this.dot4( grad4[ gi4 ], x4, y4, z4, w4 );
+
+	}
+	// Sum up and scale the result to cover the range [-1,1]
+	return 27.0 * ( n0 + n1 + n2 + n3 + n4 );
+
+};
+
+;/**
+ * @author Mugen87 / https://github.com/Mugen87
+ *
+ * References:
+ * http://john-chapman-graphics.blogspot.com/2013/01/ssao-tutorial.html
+ * https://learnopengl.com/Advanced-Lighting/SSAO
+ * https://github.com/McNopper/OpenGL/blob/master/Example28/shader/ssao.frag.glsl
+ */
+
+THREE.SSAOShader = {
+
+	defines: {
+		"PERSPECTIVE_CAMERA": 1,
+		"KERNEL_SIZE": 32
+	},
+
+	uniforms: {
+
+		"tDiffuse": { value: null },
+		"tNormal": { value: null },
+		"tDepth": { value: null },
+		"tNoise": { value: null },
+		"kernel": { value: null },
+		"cameraNear": { value: null },
+		"cameraFar": { value: null },
+		"resolution": { value: new THREE.Vector2() },
+		"cameraProjectionMatrix": { value: new THREE.Matrix4() },
+		"cameraInverseProjectionMatrix": { value: new THREE.Matrix4() },
+		"kernelRadius": { value: 8 },
+		"minDistance": { value: 0.005 },
+		"maxDistance": { value: 0.05 },
+
+	},
+
+	vertexShader: [
+
+		"varying vec2 vUv;",
+
+		"void main() {",
+
+		"	vUv = uv;",
+
+		"	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+
+		"}"
+
+	].join( "\n" ),
+
+	fragmentShader: [
+
+		"uniform sampler2D tDiffuse;",
+		"uniform sampler2D tNormal;",
+		"uniform sampler2D tDepth;",
+		"uniform sampler2D tNoise;",
+
+		"uniform vec3 kernel[ KERNEL_SIZE ];",
+
+		"uniform vec2 resolution;",
+
+		"uniform float cameraNear;",
+		"uniform float cameraFar;",
+		"uniform mat4 cameraProjectionMatrix;",
+		"uniform mat4 cameraInverseProjectionMatrix;",
+
+		"uniform float kernelRadius;",
+		"uniform float minDistance;", // avoid artifacts caused by neighbour fragments with minimal depth difference
+		"uniform float maxDistance;", // avoid the influence of fragments which are too far away
+
+		"varying vec2 vUv;",
+
+		"#include <packing>",
+
+		"float getDepth( const in vec2 screenPosition ) {",
+
+		"	return texture2D( tDepth, screenPosition ).x;",
+
+		"}",
+
+		"float getLinearDepth( const in vec2 screenPosition ) {",
+
+		"	#if PERSPECTIVE_CAMERA == 1",
+
+		"		float fragCoordZ = texture2D( tDepth, screenPosition ).x;",
+		"		float viewZ = perspectiveDepthToViewZ( fragCoordZ, cameraNear, cameraFar );",
+		"		return viewZToOrthographicDepth( viewZ, cameraNear, cameraFar );",
+
+		"	#else",
+
+		"		return texture2D( depthSampler, coord ).x;",
+
+		"	#endif",
+
+		"}",
+
+		"float getViewZ( const in float depth ) {",
+
+		"	#if PERSPECTIVE_CAMERA == 1",
+
+		"		return perspectiveDepthToViewZ( depth, cameraNear, cameraFar );",
+
+		"	#else",
+
+		"		return orthographicDepthToViewZ( depth, cameraNear, cameraFar );",
+
+		"	#endif",
+
+		"}",
+
+		"vec3 getViewPosition( const in vec2 screenPosition, const in float depth, const in float viewZ ) {",
+
+		"	float clipW = cameraProjectionMatrix[2][3] * viewZ + cameraProjectionMatrix[3][3];",
+
+		"	vec4 clipPosition = vec4( ( vec3( screenPosition, depth ) - 0.5 ) * 2.0, 1.0 );",
+
+		"	clipPosition *= clipW; // unprojection.",
+
+		"	return ( cameraInverseProjectionMatrix * clipPosition ).xyz;",
+
+		"}",
+
+		"vec3 getViewNormal( const in vec2 screenPosition ) {",
+
+		"	return unpackRGBToNormal( texture2D( tNormal, screenPosition ).xyz );",
+
+		"}",
+
+		"void main() {",
+
+		"	float depth = getDepth( vUv );",
+		"	float viewZ = getViewZ( depth );",
+
+		"	vec3 viewPosition = getViewPosition( vUv, depth, viewZ );",
+		"	vec3 viewNormal = getViewNormal( vUv );",
+
+		" vec2 noiseScale = vec2( resolution.x / 4.0, resolution.y / 4.0 );",
+		"	vec3 random = texture2D( tNoise, vUv * noiseScale ).xyz;",
+
+		// compute matrix used to reorient a kernel vector
+
+		"	vec3 tangent = normalize( random - viewNormal * dot( random, viewNormal ) );",
+		"	vec3 bitangent = cross( viewNormal, tangent );",
+		"	mat3 kernelMatrix = mat3( tangent, bitangent, viewNormal );",
+
+		" float occlusion = 0.0;",
+
+		" for ( int i = 0; i < KERNEL_SIZE; i ++ ) {",
+
+		"		vec3 sampleVector = kernelMatrix * kernel[ i ];", // reorient sample vector in view space
+		"		vec3 samplePoint = viewPosition + ( sampleVector * kernelRadius );", // calculate sample point
+
+		"		vec4 samplePointNDC = cameraProjectionMatrix * vec4( samplePoint, 1.0 );", // project point and calculate NDC
+		"		samplePointNDC /= samplePointNDC.w;",
+
+		"		vec2 samplePointUv = samplePointNDC.xy * 0.5 + 0.5;", // compute uv coordinates
+
+		"		float realDepth = getLinearDepth( samplePointUv );", // get linear depth from depth texture
+		"		float sampleDepth = viewZToOrthographicDepth( samplePoint.z, cameraNear, cameraFar );", // compute linear depth of the sample view Z value
+		"		float delta = sampleDepth - realDepth;",
+
+		"		if ( delta > minDistance && delta < maxDistance ) {", // if fragment is before sample point, increase occlusion
+
+		"			occlusion += 1.0;",
+
+		"		}",
+
+		"	}",
+
+		"	occlusion = clamp( occlusion / float( KERNEL_SIZE ), 0.0, 1.0 );",
+
+		"	gl_FragColor = vec4( vec3( 1.0 - occlusion ), 1.0 );",
+
+		"}"
+
+	].join( "\n" )
+
+};
+
+THREE.SSAODepthShader = {
+
+	defines: {
+		"PERSPECTIVE_CAMERA": 1
+	},
+
+	uniforms: {
+
+		"tDepth": { value: null },
+		"cameraNear": { value: null },
+		"cameraFar": { value: null },
+
+	},
+
+	vertexShader: [
+
+		"varying vec2 vUv;",
+
+		"void main() {",
+
+		"	vUv = uv;",
+		"	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+
+		"}"
+
+	].join( "\n" ),
+
+	fragmentShader: [
+
+		"uniform sampler2D tDepth;",
+
+		"uniform float cameraNear;",
+		"uniform float cameraFar;",
+
+		"varying vec2 vUv;",
+
+		"#include <packing>",
+
+		"float getLinearDepth( const in vec2 screenPosition ) {",
+
+		"	#if PERSPECTIVE_CAMERA == 1",
+
+		"		float fragCoordZ = texture2D( tDepth, screenPosition ).x;",
+		"		float viewZ = perspectiveDepthToViewZ( fragCoordZ, cameraNear, cameraFar );",
+		"		return viewZToOrthographicDepth( viewZ, cameraNear, cameraFar );",
+
+		"	#else",
+
+		"		return texture2D( depthSampler, coord ).x;",
+
+		"	#endif",
+
+		"}",
+
+		"void main() {",
+
+		"	float depth = getLinearDepth( vUv );",
+		"	gl_FragColor = vec4( vec3( 1.0 - depth ), 1.0 );",
+
+		"}"
+
+	].join( "\n" )
+
+};
+
+THREE.SSAOBlurShader = {
+
+	uniforms: {
+
+		"tDiffuse": { value: null },
+		"resolution": { value: new THREE.Vector2() }
+
+	},
+
+	vertexShader: [
+
+		"varying vec2 vUv;",
+
+		"void main() {",
+
+		"	vUv = uv;",
+		"	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+
+		"}"
+
+	].join( "\n" ),
+
+	fragmentShader: [
+
+		"uniform sampler2D tDiffuse;",
+
+		"uniform vec2 resolution;",
+
+		"varying vec2 vUv;",
+
+		"void main() {",
+
+		"	vec2 texelSize = ( 1.0 / resolution );",
+		"	float result = 0.0;",
+
+		"	for ( int i = - 2; i <= 2; i ++ ) {",
+
+		"		for ( int j = - 2; j <= 2; j ++ ) {",
+
+		"			vec2 offset = ( vec2( float( i ), float( j ) ) ) * texelSize;",
+		"			result += texture2D( tDiffuse, vUv + offset ).r;",
+
+		"		}",
+
+		"	}",
+
+		"	gl_FragColor = vec4( vec3( result / ( 5.0 * 5.0 ) ), 1.0 );",
+
+		"}"
+
+	].join( "\n" )
+
+};
+
+;/**
+ * @author Mugen87 / https://github.com/Mugen87
+ */
+
+THREE.SSAOPass = function ( scene, camera, width, height ) {
+
+	THREE.Pass.call( this );
+
+	this.width = ( width !== undefined ) ? width : 512;
+	this.height = ( height !== undefined ) ? height : 512;
+
+	this.clear = true;
+
+	this.camera = camera;
+	this.scene = scene;
+
+	this.kernelRadius = 8;
+	this.kernelSize = 32;
+	this.kernel = [];
+	this.noiseTexture = null;
+	this.output = 0;
+
+	this.minDistance = 0.005;
+	this.maxDistance = 0.1;
+
+	//
+
+	this.generateSampleKernel();
+	this.generateRandomKernelRotations();
+
+	// beauty render target with depth buffer
+
+	var depthTexture = new THREE.DepthTexture();
+	depthTexture.type = THREE.UnsignedShortType;
+	depthTexture.minFilter = THREE.NearestFilter;
+	depthTexture.maxFilter = THREE.NearestFilter;
+
+	this.beautyRenderTarget = new THREE.WebGLRenderTarget( this.width, this.height, {
+		minFilter: THREE.LinearFilter,
+		magFilter: THREE.LinearFilter,
+		format: THREE.RGBAFormat,
+		depthTexture: depthTexture,
+		depthBuffer: true
+	} );
+
+	// normal render target
+
+	this.normalRenderTarget = new THREE.WebGLRenderTarget( this.width, this.height, {
+		minFilter: THREE.NearestFilter,
+		magFilter: THREE.NearestFilter,
+		format: THREE.RGBAFormat
+	} );
+
+	// ssao render target
+
+	this.ssaoRenderTarget = new THREE.WebGLRenderTarget( this.width, this.height, {
+		minFilter: THREE.LinearFilter,
+		magFilter: THREE.LinearFilter,
+		format: THREE.RGBAFormat
+	} );
+
+	this.blurRenderTarget = this.ssaoRenderTarget.clone();
+
+	// ssao material
+
+	if ( THREE.SSAOShader === undefined ) {
+
+		console.error( 'THREE.SSAOPass: The pass relies on THREE.SSAOShader.' );
+
+	}
+
+	this.ssaoMaterial = new THREE.ShaderMaterial( {
+		defines: Object.assign( {}, THREE.SSAOShader.defines ),
+		uniforms: THREE.UniformsUtils.clone( THREE.SSAOShader.uniforms ),
+		vertexShader: THREE.SSAOShader.vertexShader,
+		fragmentShader: THREE.SSAOShader.fragmentShader,
+		blending: THREE.NoBlending
+	} );
+
+	this.ssaoMaterial.uniforms[ 'tDiffuse' ].value = this.beautyRenderTarget.texture;
+	this.ssaoMaterial.uniforms[ 'tNormal' ].value = this.normalRenderTarget.texture;
+	this.ssaoMaterial.uniforms[ 'tDepth' ].value = this.beautyRenderTarget.depthTexture;
+	this.ssaoMaterial.uniforms[ 'tNoise' ].value = this.noiseTexture;
+	this.ssaoMaterial.uniforms[ 'kernel' ].value = this.kernel;
+	this.ssaoMaterial.uniforms[ 'cameraNear' ].value = this.camera.near;
+	this.ssaoMaterial.uniforms[ 'cameraFar' ].value = this.camera.far;
+	this.ssaoMaterial.uniforms[ 'resolution' ].value.set( this.width, this.height );
+	this.ssaoMaterial.uniforms[ 'cameraProjectionMatrix' ].value.copy( this.camera.projectionMatrix );
+	this.ssaoMaterial.uniforms[ 'cameraInverseProjectionMatrix' ].value.getInverse( this.camera.projectionMatrix );
+
+	// normal material
+
+	this.normalMaterial = new THREE.MeshNormalMaterial();
+	this.normalMaterial.blending = THREE.NoBlending;
+
+	// blur material
+
+	this.blurMaterial = new THREE.ShaderMaterial( {
+		defines: Object.assign( {}, THREE.SSAOBlurShader.defines ),
+		uniforms: THREE.UniformsUtils.clone( THREE.SSAOBlurShader.uniforms ),
+		vertexShader: THREE.SSAOBlurShader.vertexShader,
+		fragmentShader: THREE.SSAOBlurShader.fragmentShader
+	} );
+	this.blurMaterial.uniforms[ 'tDiffuse' ].value = this.ssaoRenderTarget.texture;
+	this.blurMaterial.uniforms[ 'resolution' ].value.set( this.width, this.height );
+
+	// material for rendering the depth
+
+	this.depthRenderMaterial = new THREE.ShaderMaterial( {
+		defines: Object.assign( {}, THREE.SSAODepthShader.defines ),
+		uniforms: THREE.UniformsUtils.clone( THREE.SSAODepthShader.uniforms ),
+		vertexShader: THREE.SSAODepthShader.vertexShader,
+		fragmentShader: THREE.SSAODepthShader.fragmentShader,
+		blending: THREE.NoBlending
+	} );
+	this.depthRenderMaterial.uniforms[ 'tDepth' ].value = this.beautyRenderTarget.depthTexture;
+	this.depthRenderMaterial.uniforms[ 'cameraNear' ].value = this.camera.near;
+	this.depthRenderMaterial.uniforms[ 'cameraFar' ].value = this.camera.far;
+
+	// material for rendering the content of a render target
+
+	this.copyMaterial = new THREE.ShaderMaterial( {
+		uniforms: THREE.UniformsUtils.clone( THREE.CopyShader.uniforms ),
+		vertexShader: THREE.CopyShader.vertexShader,
+		fragmentShader: THREE.CopyShader.fragmentShader,
+		transparent: true,
+		depthTest: false,
+		depthWrite: false,
+		blendSrc: THREE.DstColorFactor,
+		blendDst: THREE.ZeroFactor,
+		blendEquation: THREE.AddEquation,
+		blendSrcAlpha: THREE.DstAlphaFactor,
+		blendDstAlpha: THREE.ZeroFactor,
+		blendEquationAlpha: THREE.AddEquation
+	} );
+
+	this.fsQuad = new THREE.Pass.FullScreenQuad( null );
+
+	this.originalClearColor = new THREE.Color();
+
+};
+
+THREE.SSAOPass.prototype = Object.assign( Object.create( THREE.Pass.prototype ), {
+
+	constructor: THREE.SSAOPass,
+
+	dispose: function () {
+
+		// dispose render targets
+
+		this.beautyRenderTarget.dispose();
+		this.normalRenderTarget.dispose();
+		this.ssaoRenderTarget.dispose();
+		this.blurRenderTarget.dispose();
+
+		// dispose materials
+
+		this.normalMaterial.dispose();
+		this.blurMaterial.dispose();
+		this.copyMaterial.dispose();
+		this.depthRenderMaterial.dispose();
+
+		// dipsose full screen quad
+
+		this.fsQuad.dispose();
+
+	},
+
+	render: function ( renderer, writeBuffer /*, readBuffer, deltaTime, maskActive */ ) {
+
+		// render beauty and depth
+
+		renderer.setRenderTarget( this.beautyRenderTarget );
+		renderer.clear();
+		renderer.render( this.scene, this.camera );
+
+		// render normals
+
+		this.renderOverride( renderer, this.normalMaterial, this.normalRenderTarget, 0x7777ff, 1.0 );
+
+		// render SSAO
+
+		this.ssaoMaterial.uniforms[ 'kernelRadius' ].value = this.kernelRadius;
+		this.ssaoMaterial.uniforms[ 'minDistance' ].value = this.minDistance;
+		this.ssaoMaterial.uniforms[ 'maxDistance' ].value = this.maxDistance;
+		this.renderPass( renderer, this.ssaoMaterial, this.ssaoRenderTarget );
+
+		// render blur
+
+		this.renderPass( renderer, this.blurMaterial, this.blurRenderTarget );
+
+		// output result to screen
+
+		switch ( this.output ) {
+
+			case THREE.SSAOPass.OUTPUT.SSAO:
+
+				this.copyMaterial.uniforms[ 'tDiffuse' ].value = this.ssaoRenderTarget.texture;
+				this.copyMaterial.blending = THREE.NoBlending;
+				this.renderPass( renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer );
+
+				break;
+
+			case THREE.SSAOPass.OUTPUT.Blur:
+
+				this.copyMaterial.uniforms[ 'tDiffuse' ].value = this.blurRenderTarget.texture;
+				this.copyMaterial.blending = THREE.NoBlending;
+				this.renderPass( renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer );
+
+				break;
+
+			case THREE.SSAOPass.OUTPUT.Beauty:
+
+				this.copyMaterial.uniforms[ 'tDiffuse' ].value = this.beautyRenderTarget.texture;
+				this.copyMaterial.blending = THREE.NoBlending;
+				this.renderPass( renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer );
+
+				break;
+
+			case THREE.SSAOPass.OUTPUT.Depth:
+
+				this.renderPass( renderer, this.depthRenderMaterial, this.renderToScreen ? null : writeBuffer );
+
+				break;
+
+			case THREE.SSAOPass.OUTPUT.Normal:
+
+				this.copyMaterial.uniforms[ 'tDiffuse' ].value = this.normalRenderTarget.texture;
+				this.copyMaterial.blending = THREE.NoBlending;
+				this.renderPass( renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer );
+
+				break;
+
+			case THREE.SSAOPass.OUTPUT.Default:
+
+				this.copyMaterial.uniforms[ 'tDiffuse' ].value = this.beautyRenderTarget.texture;
+				this.copyMaterial.blending = THREE.NoBlending;
+				this.renderPass( renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer );
+
+				this.copyMaterial.uniforms[ 'tDiffuse' ].value = this.blurRenderTarget.texture;
+				this.copyMaterial.blending = THREE.CustomBlending;
+				this.renderPass( renderer, this.copyMaterial, this.renderToScreen ? null : writeBuffer );
+
+				break;
+
+			default:
+				console.warn( 'THREE.SSAOPass: Unknown output type.' );
+
+		}
+
+	},
+
+	renderPass: function ( renderer, passMaterial, renderTarget, clearColor, clearAlpha ) {
+
+		// save original state
+		this.originalClearColor.copy( renderer.getClearColor() );
+		var originalClearAlpha = renderer.getClearAlpha();
+		var originalAutoClear = renderer.autoClear;
+
+		renderer.setRenderTarget( renderTarget );
+
+		// setup pass state
+		renderer.autoClear = false;
+		if ( ( clearColor !== undefined ) && ( clearColor !== null ) ) {
+
+			renderer.setClearColor( clearColor );
+			renderer.setClearAlpha( clearAlpha || 0.0 );
+			renderer.clear();
+
+		}
+
+		this.fsQuad.material = passMaterial;
+		this.fsQuad.render( renderer );
+
+		// restore original state
+		renderer.autoClear = originalAutoClear;
+		renderer.setClearColor( this.originalClearColor );
+		renderer.setClearAlpha( originalClearAlpha );
+
+	},
+
+	renderOverride: function ( renderer, overrideMaterial, renderTarget, clearColor, clearAlpha ) {
+
+		this.originalClearColor.copy( renderer.getClearColor() );
+		var originalClearAlpha = renderer.getClearAlpha();
+		var originalAutoClear = renderer.autoClear;
+
+		renderer.setRenderTarget( renderTarget );
+		renderer.autoClear = false;
+
+		clearColor = overrideMaterial.clearColor || clearColor;
+		clearAlpha = overrideMaterial.clearAlpha || clearAlpha;
+
+		if ( ( clearColor !== undefined ) && ( clearColor !== null ) ) {
+
+			renderer.setClearColor( clearColor );
+			renderer.setClearAlpha( clearAlpha || 0.0 );
+			renderer.clear();
+
+		}
+
+		this.scene.overrideMaterial = overrideMaterial;
+		renderer.render( this.scene, this.camera );
+		this.scene.overrideMaterial = null;
+
+		// restore original state
+
+		renderer.autoClear = originalAutoClear;
+		renderer.setClearColor( this.originalClearColor );
+		renderer.setClearAlpha( originalClearAlpha );
+
+	},
+
+	setSize: function ( width, height ) {
+
+		this.width = width;
+		this.height = height;
+
+		this.beautyRenderTarget.setSize( width, height );
+		this.ssaoRenderTarget.setSize( width, height );
+		this.normalRenderTarget.setSize( width, height );
+		this.blurRenderTarget.setSize( width, height );
+
+		this.ssaoMaterial.uniforms[ 'resolution' ].value.set( width, height );
+		this.ssaoMaterial.uniforms[ 'cameraProjectionMatrix' ].value.copy( this.camera.projectionMatrix );
+		this.ssaoMaterial.uniforms[ 'cameraInverseProjectionMatrix' ].value.getInverse( this.camera.projectionMatrix );
+
+		this.blurMaterial.uniforms[ 'resolution' ].value.set( width, height );
+
+	},
+
+	generateSampleKernel: function () {
+
+		var kernelSize = this.kernelSize;
+		var kernel = this.kernel;
+
+		for ( var i = 0; i < kernelSize; i ++ ) {
+
+			var sample = new THREE.Vector3();
+			sample.x = ( Math.random() * 2 ) - 1;
+			sample.y = ( Math.random() * 2 ) - 1;
+			sample.z = Math.random();
+
+			sample.normalize();
+
+			var scale = i / kernelSize;
+			scale = THREE.MathUtils.lerp( 0.1, 1, scale * scale );
+			sample.multiplyScalar( scale );
+
+			kernel.push( sample );
+
+		}
+
+	},
+
+	generateRandomKernelRotations: function () {
+
+		var width = 4, height = 4;
+
+		if ( THREE.SimplexNoise === undefined ) {
+
+			console.error( 'THREE.SSAOPass: The pass relies on THREE.SimplexNoise.' );
+
+		}
+
+		var simplex = new THREE.SimplexNoise();
+
+		var size = width * height;
+		var data = new Float32Array( size * 4 );
+
+		for ( var i = 0; i < size; i ++ ) {
+
+			var stride = i * 4;
+
+			var x = ( Math.random() * 2 ) - 1;
+			var y = ( Math.random() * 2 ) - 1;
+			var z = 0;
+
+			var noise = simplex.noise3d( x, y, z );
+
+			data[ stride ] = noise;
+			data[ stride + 1 ] = noise;
+			data[ stride + 2 ] = noise;
+			data[ stride + 3 ] = 1;
+
+		}
+
+		this.noiseTexture = new THREE.DataTexture( data, width, height, THREE.RGBAFormat, THREE.FloatType );
+		this.noiseTexture.wrapS = THREE.RepeatWrapping;
+		this.noiseTexture.wrapT = THREE.RepeatWrapping;
+
+	}
+
+} );
+
+THREE.SSAOPass.OUTPUT = {
+	'Default': 0,
+	'SSAO': 1,
+	'Blur': 2,
+	'Beauty': 3,
+	'Depth': 4,
+	'Normal': 5
+};
+
+;/**
  * @author Kyle-Larson https://github.com/Kyle-Larson
  * @author Takahiro https://github.com/takahirox
  * @author Lewy Blue https://github.com/looeee
@@ -74821,10 +76446,10 @@ THREE.G3DLoader.prototype =
         // Check validity of data
         // TODO: check endianness
         if (header.Magic != 0xBFA5) throw new Error("Not a BFAST file, or endianness is swapped");
-        if (data[1] != 0) throw new Error("Expected 0 in byte position 0");
-        if (data[3] != 0) throw new Error("Expected 0 in byte position 8");
-        if (data[5] != 0) throw new Error("Expected 0 in position 16");
-        if (data[7] != 0) throw new Error("Expected 0 in position 24");
+        if (data[1] !== 0) throw new Error("Expected 0 in byte position 0");
+        if (data[3] !== 0) throw new Error("Expected 0 in byte position 8");
+        if (data[5] !== 0) throw new Error("Expected 0 in position 16");
+        if (data[7] !== 0) throw new Error("Expected 0 in position 24");
         if (header.DataStart <= 32 || header.DataStart >= arrayBuffer.length) throw new Error("Data start is out of valid range");
         if (header.DataEnd < header.DataStart || header.DataEnd >= arrayBuffer.length) throw new Error("Data end is out of vaid range");
         if (header.NumArrays < 0 || header.NumArrays > header.DataEnd) throw new Error("Number of arrays is invalid");
@@ -74837,8 +76462,8 @@ THREE.G3DLoader.prototype =
             var end = data[pos+2];
 
             // Check validity of data
-            if (data[pos+1] != 0) throw new Error("Expected 0 in position " + (pos + 1) * 4);
-            if (data[pos+3] != 0) throw new Error("Expected 0 in position " + (pos + 3) * 4);
+            if (data[pos+1] !== 0) throw new Error("Expected 0 in position " + (pos + 1) * 4);
+            if (data[pos+3] !== 0) throw new Error("Expected 0 in position " + (pos + 3) * 4);
             if (begin < header.DataStart || begin > header.DataEnd) throw new Error("Buffer start is out of range");
             if (end < begin || end > header.DataEnd ) throw new Error("Buffer end is out of range");
 
@@ -74854,7 +76479,7 @@ THREE.G3DLoader.prototype =
         var joinedNames = new TextDecoder("utf-8").decode(buffers[0]);
         names = joinedNames.split('\0');
 
-        if (names.length != buffers.length - 1)
+        if (names.length !== buffers.length - 1)
             throw new Error("Expected number of names to be equal to the number of buffers - 1");
 
         // Return the bfast structure
@@ -74881,7 +76506,7 @@ THREE.G3DLoader.prototype =
         var nDescriptors = bfast.buffers.length - 1;
         for (var i=0; i < nDescriptors; ++i) {
             var desc = bfast.names[i+1].split(':');
-            if (desc[0] != 'g3d' || desc.length != '6')
+            if (desc[0] != 'g3d' || desc.length !== 6)
                 throw new Error("Not a valid attribute descriptor, must have 6 components delimited by ':' and starting with 'g3d': " + desc);
             var attribute = {
                 name:               desc,
