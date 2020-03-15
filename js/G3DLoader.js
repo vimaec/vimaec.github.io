@@ -187,7 +187,7 @@ THREE.G3DLoader.prototype =
     // Adds an attribute to a BufferGeometry, if not null
     addAttributeToGeometry : function ( geometry, name, attr ) {
         if (attr)
-            geometry.addAttribute( name, new THREE.BufferAttribute( attr.data, attr.dataArity ) );
+            geometry.setAttribute( name, new THREE.BufferAttribute( attr.data, attr.dataArity ) );
     },
 
     // Constructs a BufferGeometry from an ArrayBuffer arranged as a G3D
