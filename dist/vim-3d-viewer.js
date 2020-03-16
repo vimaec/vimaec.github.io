@@ -698,7 +698,16 @@ vim3d.view = function (options) {
                 delete cursors[uuid];
             }
         }
+
+        // Returns if a value is a string
+        function isString (value) {
+            return typeof value === 'string' || value instanceof String;
+        }
+
         function onMessage(message) {
+            if (isString(message))
+              message = JSON.parse(message);
+
             if (message.uuid == myUUID)
                return;
             loadAvatar(message.uuid);
@@ -856,6 +865,7 @@ vim3d.view = function (options) {
                 },
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
+                side: THREE.DoubleSide
             } );
 
             // postprocessing
