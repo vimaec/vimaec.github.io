@@ -699,14 +699,7 @@ vim3d.view = function (options) {
             }
         }
 
-        // Returns if a value is a string
-        function isString (value) {
-            return typeof value === 'string' || value instanceof String;
-        }
-
         function onMessage(message) {
-            if (isString(message))
-              message = JSON.parse(message);
 
             if (message.uuid == myUUID)
                return;
