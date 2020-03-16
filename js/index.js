@@ -465,22 +465,11 @@ vim3d.view = function (options) {
                 remoteColor: { r: 0x00, g: 0x88, b: 0x00 },
                 scale: 0.2,
             },
-            sunlight: {
-                skyColor: { r: 0x44, g: 0x33, b: 0x33 },
-                groundColor: { r: 0x11, g: 0x11, b: 0x22 },
-                intensity: 1,
-            },
             light1: {
                 // TODO: the positions of the lights are all wrong. 
                 direction: { x: 0.3, y: -0.75, z: 0.3 },
                 color: { r: 0xFF, g: 0xFF, b: 0xFF },
                 intensity: 1.35,
-            },
-            light2: {
-                position: { x: 0.5, y: 1, z: -1 },
-                color: { r: 0xFF, g: 0xFF, b: 0xFF },
-                //color: { r: 0xFF, g: 0xAA, b: 0x00 },
-                intensity: 1,
             },
             avatar: {                
                 width: 1,
@@ -492,6 +481,9 @@ vim3d.view = function (options) {
                 scale: 0.01,
                 position: { x: 0, y: 0, z: 0 },
                 rotation: { x: 0, y: 0, z: 0 },
+                categories: { 
+
+                },
                 material: {
                     color: { r: 0x00, g: 0x55, b: 0xFF },
                     emissive: { r: 0x00, g: 0x00, b: 0x00 },
@@ -1137,7 +1129,10 @@ vim3d.view = function (options) {
                         var mesh = new THREE.Mesh(geometry);
                         var name = fileName.substring(fileName.lastIndexOf('/')+1);
                         name = name.slice(0, -4);
-                        mesh.name = name;
+                        mesh.name = decodeURIComponent(name);
+                        // Add to the display
+                        gui.add(mesh, 'visible').name( mesh.name || ( 'Mesh' + objects.length ) );
+                        settings.object.categories[name] = true;
                         loadObject(callback)(mesh);
                     }, null, console.error);
                     return;
