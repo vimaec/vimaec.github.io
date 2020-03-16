@@ -698,7 +698,9 @@ vim3d.view = function (options) {
                 delete cursors[uuid];
             }
         }
+
         function onMessage(message) {
+
             if (message.uuid == myUUID)
                return;
             loadAvatar(message.uuid);
@@ -856,6 +858,7 @@ vim3d.view = function (options) {
                 },
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
+                side: THREE.DoubleSide
             } );
 
             // postprocessing
