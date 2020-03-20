@@ -425,8 +425,8 @@ vim3d.view = function (options) {
                 computeVertexNormals: true,
             },
             camera: {
-                near: 0.1,
-                far: 15000,
+                near: 0.001,
+                far: 1,
                 fov: 50,
                 zoom: 1,
                 position: { x: 0, y: 5, z: -5 },
@@ -617,7 +617,7 @@ vim3d.view = function (options) {
                     child.material = material;
                 }
                 child.position.copy(settings.object.position);
-                child.rotation.copy(toEuler(settings.object.rotation));
+                child.quaternion.setFromEuler(toEuler(settings.object.rotation));
             }
             cursor.visible = settings.cursor.show;
             cursor.material.color = toColor(settings.cursor.localColor);
@@ -707,7 +707,7 @@ vim3d.view = function (options) {
             var avatar = avatars[message.uuid];            
             if (avatar && message.camera) {
                 avatar.position.set(message.camera.position.x, message.camera.position.y, message.camera.position.z);
-                avatar.rotation.set(message.camera.rotation.x, message.camera.rotation.y, message.camera.rotation.z);
+                avatar.quaternion.set(message.camera.rotation.x, message.camera.rotation.y, message.camera.rotation.z, message.camera.rotation.w);
             }
             var remoteCursor = cursors[message.uuid];
             if (remoteCursor && message.cursor)
@@ -759,9 +759,10 @@ vim3d.view = function (options) {
                             z: camera.position.z,
                         },
                         rotation: {
-                            x: camera.rotation.x,
-                            y: camera.rotation.y,
-                            z: camera.rotation.z,
+                            x: camera.quaternion.x,
+                            y: camera.quaternion.y,
+                            z: camera.quaternion.z,
+                            w: camera.quaternion.w,
                         }
                     }
                 }
