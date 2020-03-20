@@ -1,83 +1,128 @@
 body
 {
-  padding: 0;
-  margin: 0;
+    padding: 0;
+    margin: 0;
+    --common-text-shadow: 1px 1px 1px #00000026;
+    --dat-gui-container-size: 250px;
+    --button-size: 100px;
 }
 
-.logo
+#logo
 {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  margin: 1rem;
-  background: transparent url('./img/VIM logo FULL COLOR landscape@2x.png') 0% 0% no-repeat;
-  background-size: cover;
-  width: 128px;
-  height: 48px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    margin: 1rem;
+    background: transparent url('./img/VIM logo FULL COLOR landscape@2x.png') 0% 0% no-repeat;
+    background-size: cover;
+    width: 128px;
+    height: 48px;
 }
 
-.bdc /* bdc = bim-data-container */
+.layout
 {
-  position: fixed;
-  top: 48;
-  left: 0;
+    position:fixed;
+    top:0;
+    left:0;
+    height: 100%;
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto var(--dat-gui-container-size);
+    grid-template-rows: 100%;
+    grid-template-areas:
+        "content side";
+    pointer-events: painted;
 }
 
-.bdc--pane
+.layout--span-all
 {
-  color: white;
-  display: grid;
-  margin: 1rem;
-  grid-template-columns: 440px;
-  grid-template-rows: auto 500px;
-  grid-template-areas:
+    grid-column: content / span 2;
+    grid-row-start: 1;
+    grid-row-end: 1;
+    width: 100%;
+    height: 100%;
+}
+
+.layout--content
+{
+    grid-area: content;
+    width: 100%;
+    height: 100%;
+}
+
+.layout--side
+{
+    grid-area: side;
+    max-height: 100%;
+    z-index: 1000;
+}
+
+.overlay--root
+{
+    display: grid;
+    height: 100%;
+}
+
+.bdc--pane /* bdc = bim-data-container */
+{
+    position: fixed;
+    top: 48;
+    left: 0;
+    font-family: 'Roboto', sans-serif;
+    display: grid;
+    margin: 1rem;
+    grid-template-columns: 440px;
+    grid-template-rows: auto auto;
+    grid-template-areas:
     "header"
     "body";
-  box-shadow: 5px 5px 14px #00000026;
-  border-radius: 8px 8px 0px 0px;
+    box-shadow: 5px 5px 14px #00000026;
+    border-radius: 8px 8px 0px 0px;
+    z-index: 10000;
 }
 
 .bdc--header
 {
-  grid-area: header;
-  color: white;
-  font-family: 'Roboto', sans-serif;
-  border-radius: 8px 8px 0px 0px;
-  background: transparent linear-gradient(170deg, #0590CC 0%, #8DC95B 100%) 0% 0% no-repeat padding-box;
-  padding: 25px 25px 25px 21px;
-  display: grid;
-  grid-template-columns: 90px 90px 90px 1fr;
-  grid-template-rows: auto 17px auto auto;
-  grid-template-areas:
+    grid-area: header;
+    color: white;
+    border-radius: 8px 8px 0px 0px;
+    background: transparent linear-gradient(170deg, #0590CC 0%, #8DC95B 100%) 0% 0% no-repeat padding-box;
+    padding: 25px;
+    display: grid;
+    grid-template-columns: 100px 100px 100px 1fr;
+    grid-template-rows: auto 17px auto auto;
+    grid-template-areas:
     "title        title       title       title"
     ".            .           .           ."
     "label-family label-type  label-count ."
     "value-family value-type  value-count .";
-  align-items: baseline;
+    align-items: baseline;
 }
 
 .bdc--title
 {
-  grid-area: title;
-  text-align: left;
-  font-size: 28px;
-  letter-spacing: -0.48px;
-  text-shadow: 1px 1px 1px #00000026;
+    grid-area: title;
+    text-align: left;
+    font-size: 28px;
+    letter-spacing: -0.48px;
+    text-shadow: var(--common-text-shadow);
 }
 
 .bdc--close
 {
-  grid-area: title;
-  justify-self: right;
-  font-size: 1.5rem;
+    grid-area: title;
+    justify-self: right;
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 1000;
 }
 
 .bdc--label
 {
-  font-size: 11px;
-  letter-spacing: -0.2px;
-  opacity: 0.4;
-  align-self: end;
+    font-size: 11px;
+    letter-spacing: -0.2px;
+    opacity: 0.4;
+    align-self: end;
 }
 
 .bdc--label__family { grid-area: label-family; }
@@ -86,22 +131,72 @@ body
 
 .bdc--value
 {
-  font-size: 21px;
-  letter-spacing: -0.36px;
-  text-shadow: 1px 1px 1px #00000026;
-  align-self: end;
+    font-size: 21px;
+    letter-spacing: -0.36px;
+    text-shadow: var(--common-text-shadow);
+    align-self: end;
 }
-
 .bdc--value__family { grid-area: value-family; }
 .bdc--value__type   { grid-area: value-type; }
 .bdc--value__count  { grid-area: value-count; }
 
 .bdc--body
 {
-  grid-area: body;
-  background: #FFFFFF 0% 0% no-repeat padding-box;
-  opacity: 1;
-  backdrop-filter: blur(25px); /* only works in safari apparently */
-  -webkit-backdrop-filter: blur(25px);
+    grid-area: body;
+    background: #FAFAFA 0% 0% no-repeat padding-box;
+    opacity: 1;
+    backdrop-filter: blur(25px); /* only works in safari apparently */
+    -webkit-backdrop-filter: blur(25px);
+    padding: 25px;
 }
 
+.bdc--body__subtitle
+{
+    font-size: 18px;
+    color: #2AAAE2;
+    margin-bottom: 20px;
+}
+
+.bdc--body__value-region
+{
+    background: rgba(63, 67, 61, 0.1) 0% 0% no-repeat padding-box;
+    border-radius: 4px;
+    /* opacity: 0.1; */
+    padding: 10px 15px
+}
+
+.bdc--body__value
+{
+    font-size: 14px;
+    color: #3F433D;
+    margin-bottom: 10px;
+}
+.bdc--body__value:last-of-type { margin-bottom:0px; }
+
+.bdp--container
+{
+    justify-self: end;
+    align-self: end;
+    bottom: 0px;
+    right: 0px;
+    margin: 1rem;
+    z-index: 10000;
+}
+
+.bdp--btn
+{
+    background: transparent linear-gradient(148deg, #0590CC 0%, #8DC95B 100%) 0% 0% no-repeat padding-box;
+    box-shadow: 5px 5px 14px #0000002E;
+    border-radius: 50%;
+    width: var(--button-size);
+    height: var(--button-size);
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 3rem;
+    font-weight: normal;
+    cursor: pointer;
+    text-shadow: var(--common-text-shadow);
+}
