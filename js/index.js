@@ -1046,7 +1046,7 @@ vim3d.view = function (options) {
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            outputStats(g);
+            // outputStats(g);
             g.computeBoundsTree();
 
             updateObjects();
@@ -1055,7 +1055,7 @@ vim3d.view = function (options) {
           }
         }
         function loadIntoScene(fileName, mtlurl, callback) {
-            console.log("Loading object from " + fileName);
+            // console.log("Loading object from " + fileName);
             var extPos = fileName.lastIndexOf(".");
             var ext = fileName.slice(extPos + 1).toLowerCase();
             switch (ext) {
@@ -1093,7 +1093,7 @@ vim3d.view = function (options) {
                             materialsLoaded = true;
                             objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
                         }, null, function () {
-                            console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
+                            // console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
                             objLoader_1.load(fileName, loadObject(callback));
                         });
                     }

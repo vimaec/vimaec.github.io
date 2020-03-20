@@ -1046,7 +1046,7 @@ vim3d.view = function (options) {
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            outputStats(g);
+            // outputStats(g);
             g.computeBoundsTree();
 
             updateObjects();
@@ -1055,7 +1055,7 @@ vim3d.view = function (options) {
           }
         }
         function loadIntoScene(fileName, mtlurl, callback) {
-            console.log("Loading object from " + fileName);
+            // console.log("Loading object from " + fileName);
             var extPos = fileName.lastIndexOf(".");
             var ext = fileName.slice(extPos + 1).toLowerCase();
             switch (ext) {
@@ -1093,7 +1093,7 @@ vim3d.view = function (options) {
                             materialsLoaded = true;
                             objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
                         }, null, function () {
-                            console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
+                            // console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
                             objLoader_1.load(fileName, loadObject(callback));
                         });
                     }
@@ -76501,7 +76501,7 @@ THREE.G3DLoader.prototype =
 
         // break the first one up into names
         var joinedNames = new TextDecoder("utf-8").decode(buffers[0]);
-        names = joinedNames.split('\0');
+        var names = joinedNames.split('\0');
 
         if (names.length !== buffers.length - 1)
             throw new Error("Expected number of names to be equal to the number of buffers - 1");
@@ -76627,6 +76627,12 @@ THREE.G3DLoader.prototype =
         var colors = this.findAttribute( g3d, null, "color", "0", "int8", "4" );
         //console.log(position ? "Found color data" : "No color data found");
 
+        // Find the face ids.
+        var faceGroupIdAttr = this.findAttribute(g3d, "face", "groupid", "0", "int32", "1");
+        if (!faceGroupIdAttr) {
+            throw new Error("No face group ids found.");
+        }
+
         if (!position) throw new Error("Cannot create geometry without a valid vertex attribute");
         if (!indices) throw new Error("Cannot create geometry without a valid index attribute");
 
@@ -76637,8 +76643,12 @@ THREE.G3DLoader.prototype =
         this.addAttributeToGeometry( geometry, 'position', position );
 
         // Optionally add a vertex color data buffer if present
-        if (colors)
+        if (colors) {
             this.addAttributeToGeometry( geometry, 'color', colors );
+        }
+
+        // Add the face group ids.
+        this.addAttributeToGeometry(geometry, 'facegroupids', faceGroupIdAttr);
 
         // Add the index buffer (which has to be cast to a Uint32BufferAttribute)
         var typedArray = this.attributeToTypedArray( indices );
