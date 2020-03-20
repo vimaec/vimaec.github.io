@@ -394,6 +394,7 @@ vim3d.view = function (options) {
     // Pubnub initialization code
     var myUUID;
     var pubnub;
+    var throttledPublishCameraXfo;
 
     // Variables
     var avatars = {};
@@ -403,10 +404,9 @@ vim3d.view = function (options) {
     var stats, gui, controls;
     var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
     var ssaoPass, composer;
-
+    
     var materialsLoaded = false;
     var objects = [];
-    var throttledPublishMessage;
 
     // Used with STL example
     //const material = new THREE.MeshPhongMaterial( { color: 0xff5533, specular: 0x111111, shininess: 200 } );
@@ -695,11 +695,18 @@ vim3d.view = function (options) {
         }
     }
 
-    function onMessage(message) {
+    function onMessage(uuid, message) {
+        // We never care about our own messages
+        if (uuid == myUUID)
+            return;
 
-        const { camera, cursor, Publisher } = message;
+        const { camera, cursor } = message;
         if (camera != null)
-            onUpdateAvatar(Publisher, camera, cursor)
+            onUpdateAvatar(uuid, camera, cursor)
+
+        const { rallyCall } = message;
+        if (rallyCall != null)
+            onRallyCall(rallyCall)
     }
 
     function onUpdateAvatar(uuid, cameraXfo, cursorXfo) {
@@ -712,6 +719,12 @@ vim3d.view = function (options) {
         var remoteCursor = cursors[uuid];
         if (remoteCursor && cursorXfo)
             remoteCursor.position.set(cursorXfo.position.x, cursorXfo.position.y, cursorXfo.position.z);
+    }
+
+    function onRallyCall(rallyCall) {
+        // We set the camera xfo
+        const { postion, rotation } = rallyCall;
+        camera.position.set(position.x, position.y, position.z);
     }
 
     function stripVector(v) {
@@ -764,8 +777,10 @@ vim3d.view = function (options) {
             viewDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion);
         }
         publish({
-            rallyPoint,
-            viewDirection
+            rallyCall: { 
+                rallyPoint,
+                viewDirection
+            }
         })
         // else
     }
@@ -915,7 +930,7 @@ vim3d.view = function (options) {
             });
             pubnub.addListener({
                 message: function (m) {
-                    onMessage(m.message);
+                    onMessage(m.publisher, m.message);
                 },
                 presence: function (m) {
                     if (m.action == "join") {
