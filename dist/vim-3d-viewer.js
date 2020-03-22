@@ -911,7 +911,7 @@ vim3d.view = function (options) {
 
         // Set-up pubnub
         if (settings.pubnub) {
-            myUUID = PubNub.generateUUID();
+            myUUID = getMyUuid();
             pubnub = new PubNub({
                 publishKey: "pub-c-39d36562-7867-4ddc-b7e2-9eaaa344f727",
                 subscribeKey: "sub-c-e742a396-5e51-11ea-b226-5aef0d0da10f",
@@ -1314,6 +1314,19 @@ vim3d.setVisAll = function (vis) {
 }
 
 // Helper functions
+
+function getMyUuid() {
+    // Lets try and keep a constant UUID (for billing reasons, and
+    // also when someone re-connects, they can resume their previous avatar)
+    var uuid = localStorage.getItem("uuid");
+    if (!uuid)
+    {
+        PubNub.generateUUID();
+        localStorage.setItem("uuid", uuid);
+    }
+    return uuid;
+}
+
 function toVec(obj) {
     return new THREE.Vector3(obj.x, obj.y, obj.z);
 }
