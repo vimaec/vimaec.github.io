@@ -404,7 +404,7 @@ vim3d.view = function (options) {
     var stats, gui, controls;
     var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
     var ssaoPass, composer;
-    
+
     var materialsLoaded = false;
     var objects = [];
 
@@ -608,8 +608,7 @@ vim3d.view = function (options) {
         for (var child of objects) {
             //child.castShadow = true;
             //child.receiveShadow = true;
-            var scale = scalarToVec(settings.object.scale);
-            child.scale.copy(scale);
+            child.scale.setScalar(settings.object.scale);
             if (!materialsLoaded) {
                 updateMaterial(material, settings);
                 child.material = material;
@@ -619,11 +618,11 @@ vim3d.view = function (options) {
         }
         cursor.visible = settings.cursor.show;
         cursor.material.color = toColor(settings.cursor.localColor);
-        cursor.scale.copy(scalarToVec(settings.cursor.scale));
+        cursor.scale.setScalar(settings.cursor.scale);
         for (var k in cursors) {
             var c = cursors[k];
             c.material.color = toColor(settings.cursor.remoteColor);
-            c.scale.copy(scalarToVec(settings.cursor.scale));
+            c.scale.setScalar(settings.cursor.scale);
         }
     }
     function objectToPropDesc(obj, pdm) {
@@ -709,36 +708,27 @@ vim3d.view = function (options) {
             onRallyCall(rallyCall)
     }
 
-    function onUpdateAvatar(uuid, cameraXfo, cursorXfo) {
+    function onUpdateAvatar(uuid, avatarXfo, cursorXfo) {
         loadAvatar(uuid);
         var avatar = avatars[uuid];
         if (avatar) {
-            avatar.position.set(cameraXfo.position.x, cameraXfo.position.y, cameraXfo.position.z);
-            avatar.quaternion.set(cameraXfo.rotation.x, cameraXfo.rotation.y, cameraXfo.rotation.z, cameraXfo.rotation.w);
+            if (avatarXfo.position)
+                setVector(avatar.position, avatarXfo.position);
+            if (avatarXfo.rotation)
+                setQuaternion(avatar.quaternion, avatarXfo.rotation);
         }
         var remoteCursor = cursors[uuid];
         if (remoteCursor && cursorXfo)
-            remoteCursor.position.set(cursorXfo.position.x, cursorXfo.position.y, cursorXfo.position.z);
+            setVector(remoteCursor.position, cursorXfo.position);
     }
 
     function onRallyCall(rallyCall) {
         // We set the camera xfo
         const { postion, rotation } = rallyCall;
-        camera.position.set(position.x, position.y, position.z);
+        setVector(camera.position, postion);
     }
 
-    function stripVector(v) {
-        return {
-            x: v.x,
-            y: v.y,
-            z: v.z,
-        }
-    }
 
-    function stripQuaternion(q) {
-        var sq = stripVector(q)
-        sq.w = q.w
-    }
 
     function publishCameraXfo() {
 
@@ -760,8 +750,7 @@ vim3d.view = function (options) {
         publish(message);
     }
 
-    function publishRallyCall()
-    {
+    function publishRallyCall() {
         // If we are pointing at something rally to there
         var rallyPoint;
         var viewDirection;
@@ -777,7 +766,7 @@ vim3d.view = function (options) {
             viewDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion);
         }
         publish({
-            rallyCall: { 
+            rallyCall: {
                 rallyPoint,
                 viewDirection
             }
@@ -799,7 +788,7 @@ vim3d.view = function (options) {
     function createCursorMesh(localOrRemote) {
         var color = localOrRemote ? settings.cursor.localColor : settings.cursor.remoteColor;
         var c = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(0.5), new THREE.MeshPhongMaterial({ color: color }));
-        c.scale.set(scalarToVec(settings.cursor.scale));
+        c.scale.setScalar(settings.cursor.scalar);
         c.visible = settings.cursor.show;
         scene.add(c);
         return c;
@@ -1070,7 +1059,7 @@ vim3d.view = function (options) {
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            outputStats(g);
+            // outputStats(g);
             g.computeBoundsTree();
 
             updateObjects();
@@ -1079,7 +1068,7 @@ vim3d.view = function (options) {
         }
     }
     function loadIntoScene(fileName, mtlurl, callback) {
-        console.log("Loading object from " + fileName);
+        // console.log("Loading object from " + fileName);
         var extPos = fileName.lastIndexOf(".");
         var ext = fileName.slice(extPos + 1).toLowerCase();
         switch (ext) {
@@ -1117,14 +1106,13 @@ vim3d.view = function (options) {
                         materialsLoaded = true;
                         objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
                     }, null, function () {
-                        console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
+                        // console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
                         objLoader_1.load(fileName, loadObject(callback));
                     });
                 }
                 else {
                     objLoader_1.load(fileName, loadObject(callback));
-                }
-                return;
+                };
             }
             case "pcd": {
                 var loader = new THREE.PCDLoader();
@@ -1194,13 +1182,7 @@ vim3d.view = function (options) {
             // throw new Error("Unrecognized file type extension '" + ext + "' for file " + fileName);
         }
     }
-    // Helper functions
-    function toVec(obj) {
-        return new THREE.Vector3(obj.x, obj.y, obj.z);
-    }
-    function scalarToVec(x) {
-        return new THREE.Vector3(x, x, x);
-    }
+
     function addShadowedLight(scene) {
         var dirLight = new THREE.DirectionalLight();
         scene.add(dirLight);
@@ -1331,6 +1313,32 @@ vim3d.setVisAll = function (vis) {
         obj.visible = vis;
 }
 
+// Helper functions
+function toVec(obj) {
+    return new THREE.Vector3(obj.x, obj.y, obj.z);
+}
+
+function setVector(dest, src) {
+    dest.set(src.x, src.y, src.z);
+}
+
+function setQuaternion(dest, src) {
+    dest.set(src.x, src.y, src.z, src.w);
+}
+
+function stripVector(v) {
+    return {
+        x: v.x,
+        y: v.y,
+        z: v.z,
+    }
+}
+
+function stripQuaternion(q) {
+    var sq = stripVector(q)
+    sq.w = q.w
+    return sq;
+}
 //# sourceMappingURL=index.js.map
 ;/**
  * dat-gui JavaScript Controller Library
@@ -76522,7 +76530,7 @@ THREE.G3DLoader.prototype =
 
         // break the first one up into names
         var joinedNames = new TextDecoder("utf-8").decode(buffers[0]);
-        names = joinedNames.split('\0');
+        var names = joinedNames.split('\0');
 
         if (names.length !== buffers.length - 1)
             throw new Error("Expected number of names to be equal to the number of buffers - 1");
@@ -76648,6 +76656,12 @@ THREE.G3DLoader.prototype =
         var colors = this.findAttribute( g3d, null, "color", "0", "int8", "4" );
         //console.log(position ? "Found color data" : "No color data found");
 
+        // Find the face ids.
+        var faceGroupIdAttr = this.findAttribute(g3d, "face", "groupid", "0", "int32", "1");
+        if (!faceGroupIdAttr) {
+            throw new Error("No face group ids found.");
+        }
+
         if (!position) throw new Error("Cannot create geometry without a valid vertex attribute");
         if (!indices) throw new Error("Cannot create geometry without a valid index attribute");
 
@@ -76658,8 +76672,12 @@ THREE.G3DLoader.prototype =
         this.addAttributeToGeometry( geometry, 'position', position );
 
         // Optionally add a vertex color data buffer if present
-        if (colors)
+        if (colors) {
             this.addAttributeToGeometry( geometry, 'color', colors );
+        }
+
+        // Add the face group ids.
+        this.addAttributeToGeometry(geometry, 'facegroupids', faceGroupIdAttr);
 
         // Add the index buffer (which has to be cast to a Uint32BufferAttribute)
         var typedArray = this.attributeToTypedArray( indices );

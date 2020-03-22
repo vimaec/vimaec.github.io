@@ -404,7 +404,7 @@ vim3d.view = function (options) {
     var stats, gui, controls;
     var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
     var ssaoPass, composer;
-    
+
     var materialsLoaded = false;
     var objects = [];
 
@@ -608,8 +608,7 @@ vim3d.view = function (options) {
         for (var child of objects) {
             //child.castShadow = true;
             //child.receiveShadow = true;
-            var scale = scalarToVec(settings.object.scale);
-            child.scale.copy(scale);
+            child.scale.setScalar(settings.object.scale);
             if (!materialsLoaded) {
                 updateMaterial(material, settings);
                 child.material = material;
@@ -619,11 +618,11 @@ vim3d.view = function (options) {
         }
         cursor.visible = settings.cursor.show;
         cursor.material.color = toColor(settings.cursor.localColor);
-        cursor.scale.copy(scalarToVec(settings.cursor.scale));
+        cursor.scale.setScalar(settings.cursor.scale);
         for (var k in cursors) {
             var c = cursors[k];
             c.material.color = toColor(settings.cursor.remoteColor);
-            c.scale.copy(scalarToVec(settings.cursor.scale));
+            c.scale.setScalar(settings.cursor.scale);
         }
     }
     function objectToPropDesc(obj, pdm) {
@@ -709,36 +708,27 @@ vim3d.view = function (options) {
             onRallyCall(rallyCall)
     }
 
-    function onUpdateAvatar(uuid, cameraXfo, cursorXfo) {
+    function onUpdateAvatar(uuid, avatarXfo, cursorXfo) {
         loadAvatar(uuid);
         var avatar = avatars[uuid];
         if (avatar) {
-            avatar.position.set(cameraXfo.position.x, cameraXfo.position.y, cameraXfo.position.z);
-            avatar.quaternion.set(cameraXfo.rotation.x, cameraXfo.rotation.y, cameraXfo.rotation.z, cameraXfo.rotation.w);
+            if (avatarXfo.position)
+                setVector(avatar.position, avatarXfo.position);
+            if (avatarXfo.rotation)
+                setQuaternion(avatar.quaternion, avatarXfo.rotation);
         }
         var remoteCursor = cursors[uuid];
         if (remoteCursor && cursorXfo)
-            remoteCursor.position.set(cursorXfo.position.x, cursorXfo.position.y, cursorXfo.position.z);
+            setVector(remoteCursor.position, cursorXfo.position);
     }
 
     function onRallyCall(rallyCall) {
         // We set the camera xfo
         const { postion, rotation } = rallyCall;
-        camera.position.set(position.x, position.y, position.z);
+        setVector(camera.position, postion);
     }
 
-    function stripVector(v) {
-        return {
-            x: v.x,
-            y: v.y,
-            z: v.z,
-        }
-    }
 
-    function stripQuaternion(q) {
-        var sq = stripVector(q)
-        sq.w = q.w
-    }
 
     function publishCameraXfo() {
 
@@ -760,8 +750,7 @@ vim3d.view = function (options) {
         publish(message);
     }
 
-    function publishRallyCall()
-    {
+    function publishRallyCall() {
         // If we are pointing at something rally to there
         var rallyPoint;
         var viewDirection;
@@ -777,7 +766,7 @@ vim3d.view = function (options) {
             viewDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion);
         }
         publish({
-            rallyCall: { 
+            rallyCall: {
                 rallyPoint,
                 viewDirection
             }
@@ -799,7 +788,7 @@ vim3d.view = function (options) {
     function createCursorMesh(localOrRemote) {
         var color = localOrRemote ? settings.cursor.localColor : settings.cursor.remoteColor;
         var c = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(0.5), new THREE.MeshPhongMaterial({ color: color }));
-        c.scale.set(scalarToVec(settings.cursor.scale));
+        c.scale.setScalar(settings.cursor.scalar);
         c.visible = settings.cursor.show;
         scene.add(c);
         return c;
@@ -1077,57 +1066,53 @@ vim3d.view = function (options) {
             if (callback)
                 callback();
         }
-        function loadIntoScene(fileName, mtlurl, callback) {
-            // console.log("Loading object from " + fileName);
-            var extPos = fileName.lastIndexOf(".");
-            var ext = fileName.slice(extPos + 1).toLowerCase();
-            switch (ext) {
-                case "3ds": {
-                    var loader = new THREE.TDSLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "fbx": {
-                    var loader = new THREE.FBXLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "dae": {
-                    var loader = new THREE.ColladaLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "gltf": {
-                    var loader = new THREE.GLTFLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "gcode": {
-                    var loader = new THREE.GCodeLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "obj": {
-                    var objLoader_1 = new THREE.OBJLoader();
-                    var mtlLoader = new THREE.MTLLoader();
-                    if (mtlurl) {
-                        mtlLoader.load(mtlurl, function (mats) {
-                            mats.preload();
-                            materialsLoaded = true;
-                            objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
-                        }, null, function () {
-                            // console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
-                            objLoader_1.load(fileName, loadObject(callback));
-                        });
-                    }
-                    else {
+    }
+    function loadIntoScene(fileName, mtlurl, callback) {
+        // console.log("Loading object from " + fileName);
+        var extPos = fileName.lastIndexOf(".");
+        var ext = fileName.slice(extPos + 1).toLowerCase();
+        switch (ext) {
+            case "3ds": {
+                var loader = new THREE.TDSLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "fbx": {
+                var loader = new THREE.FBXLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "dae": {
+                var loader = new THREE.ColladaLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "gltf": {
+                var loader = new THREE.GLTFLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "gcode": {
+                var loader = new THREE.GCodeLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "obj": {
+                var objLoader_1 = new THREE.OBJLoader();
+                var mtlLoader = new THREE.MTLLoader();
+                if (mtlurl) {
+                    mtlLoader.load(mtlurl, function (mats) {
+                        mats.preload();
+                        materialsLoaded = true;
+                        objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
+                    }, null, function () {
+                        // console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
                         objLoader_1.load(fileName, loadObject(callback));
                     });
                 }
                 else {
                     objLoader_1.load(fileName, loadObject(callback));
-                }
-                return;
+                };
             }
             case "pcd": {
                 var loader = new THREE.PCDLoader();
@@ -1197,13 +1182,7 @@ vim3d.view = function (options) {
             // throw new Error("Unrecognized file type extension '" + ext + "' for file " + fileName);
         }
     }
-    // Helper functions
-    function toVec(obj) {
-        return new THREE.Vector3(obj.x, obj.y, obj.z);
-    }
-    function scalarToVec(x) {
-        return new THREE.Vector3(x, x, x);
-    }
+
     function addShadowedLight(scene) {
         var dirLight = new THREE.DirectionalLight();
         scene.add(dirLight);
@@ -1334,4 +1313,30 @@ vim3d.setVisAll = function (vis) {
         obj.visible = vis;
 }
 
+// Helper functions
+function toVec(obj) {
+    return new THREE.Vector3(obj.x, obj.y, obj.z);
+}
+
+function setVector(dest, src) {
+    dest.set(src.x, src.y, src.z);
+}
+
+function setQuaternion(dest, src) {
+    dest.set(src.x, src.y, src.z, src.w);
+}
+
+function stripVector(v) {
+    return {
+        x: v.x,
+        y: v.y,
+        z: v.z,
+    }
+}
+
+function stripQuaternion(q) {
+    var sq = stripVector(q)
+    sq.w = q.w
+    return sq;
+}
 //# sourceMappingURL=index.js.map
