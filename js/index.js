@@ -1070,54 +1070,57 @@ vim3d.view = function (options) {
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            outputStats(g);
+            // outputStats(g);
             g.computeBoundsTree();
 
             updateObjects();
             if (callback)
                 callback();
         }
-    }
-    function loadIntoScene(fileName, mtlurl, callback) {
-        console.log("Loading object from " + fileName);
-        var extPos = fileName.lastIndexOf(".");
-        var ext = fileName.slice(extPos + 1).toLowerCase();
-        switch (ext) {
-            case "3ds": {
-                var loader = new THREE.TDSLoader();
-                loader.load(fileName, loadObject(callback));
-                return;
-            }
-            case "fbx": {
-                var loader = new THREE.FBXLoader();
-                loader.load(fileName, loadObject(callback));
-                return;
-            }
-            case "dae": {
-                var loader = new THREE.ColladaLoader();
-                loader.load(fileName, loadObject(callback));
-                return;
-            }
-            case "gltf": {
-                var loader = new THREE.GLTFLoader();
-                loader.load(fileName, loadObject(callback));
-                return;
-            }
-            case "gcode": {
-                var loader = new THREE.GCodeLoader();
-                loader.load(fileName, loadObject(callback));
-                return;
-            }
-            case "obj": {
-                var objLoader_1 = new THREE.OBJLoader();
-                var mtlLoader = new THREE.MTLLoader();
-                if (mtlurl) {
-                    mtlLoader.load(mtlurl, function (mats) {
-                        mats.preload();
-                        materialsLoaded = true;
-                        objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
-                    }, null, function () {
-                        console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
+        function loadIntoScene(fileName, mtlurl, callback) {
+            // console.log("Loading object from " + fileName);
+            var extPos = fileName.lastIndexOf(".");
+            var ext = fileName.slice(extPos + 1).toLowerCase();
+            switch (ext) {
+                case "3ds": {
+                    var loader = new THREE.TDSLoader();
+                    loader.load(fileName, loadObject(callback));
+                    return;
+                }
+                case "fbx": {
+                    var loader = new THREE.FBXLoader();
+                    loader.load(fileName, loadObject(callback));
+                    return;
+                }
+                case "dae": {
+                    var loader = new THREE.ColladaLoader();
+                    loader.load(fileName, loadObject(callback));
+                    return;
+                }
+                case "gltf": {
+                    var loader = new THREE.GLTFLoader();
+                    loader.load(fileName, loadObject(callback));
+                    return;
+                }
+                case "gcode": {
+                    var loader = new THREE.GCodeLoader();
+                    loader.load(fileName, loadObject(callback));
+                    return;
+                }
+                case "obj": {
+                    var objLoader_1 = new THREE.OBJLoader();
+                    var mtlLoader = new THREE.MTLLoader();
+                    if (mtlurl) {
+                        mtlLoader.load(mtlurl, function (mats) {
+                            mats.preload();
+                            materialsLoaded = true;
+                            objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
+                        }, null, function () {
+                            // console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
+                            objLoader_1.load(fileName, loadObject(callback));
+                        });
+                    }
+                    else {
                         objLoader_1.load(fileName, loadObject(callback));
                     });
                 }
