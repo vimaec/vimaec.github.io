@@ -173,20 +173,12 @@ class BimDataPicker extends React.Component {
         if (intersections.length > 0) {
 
             const bimData = _bimDataConverter.getBimData(intersections[0]);
-            // TODO: extract bim data.
 
             _bimDataPaneInstance.setBimData(
                 `Title`,
                 `Family`,
                 `Type`,
-                [
-                    `Distance: ${distance}`,
-                    `Face: ${face}`,
-                    `FaceIndex: ${faceIndex}`,
-                    `Object: ${object}`,
-                    `InstanceId: ${instanceId}`,
-                    `Point: ${point}`,
-                ],
+                bimData,
                 `0`
             );
             _bimDataPaneInstance.display(true);
