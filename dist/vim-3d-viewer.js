@@ -826,6 +826,8 @@ vim3d.view = function (options) {
         else {
             rallyPoint = camera.position;
             viewDirection = camera.getWorldDirection(cameraForward);
+            // We want the users to appear in front of us, looking at us
+            viewDirection.multiplyScalar(-1);
         }
         console.log("HitPoint: " + rallyPoint);
         publish({
