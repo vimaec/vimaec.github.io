@@ -722,13 +722,69 @@ vim3d.view = function (options) {
             setVector(remoteCursor.position, cursorXfo.position);
     }
 
+    var isRallying = false;
+    var rotationMatrix = new THREE.Matrix4();
+    var upVector = new THREE.Vector3(0, 1, 0);
+    var targetPosition = new THREE.Vector3();
+    var cameraForward = new THREE.Vector3();
+    var targetQuat = new THREE.Quaternion();
+
     function onRallyCall(rallyCall) {
+
         // We set the camera xfo
-        const { postion, rotation } = rallyCall;
-        setVector(camera.position, postion);
+        const { rallyPoint, viewDirection, viewDistance } = rallyCall;
+
+        // Disable user input, and set it the orbit target to be the highlighted object
+        isRallying = true;
+        controls.target.copy(rallyPoint);
+
+        // Our offset moves us backwards from the rallyPoint but still facing towards it
+        setVector(targetPosition, rallyPoint);
+        var zOffset = camera.getWorldDirection(cameraForward)
+            .multiplyScalar(-viewDistance);
+        // If our offset is not in the same direction as the viewDirection, then 
+        // we negate the offset X/Z values to flip us around
+        // This is a very cheap way to put everyone in the same hemipshere
+        // (note: this is GT because our offset is the inverse of the direction we actually face)
+        if (zOffset.dot(viewDirection) > 0) {
+            zOffset.x *= -1;
+            zOffset.z *= -1;
+        }
+        targetPosition.add(zOffset);
+        vectorTween(camera.position, targetPosition);
+
+        // Now rotate to look at rally point.  This theoretically should be a no-op
+        rotationMatrix.lookAt(targetPosition, rallyPoint, upVector);
+        targetQuat.setFromRotationMatrix(rotationMatrix);
+        quaternionTween(camera.quaternion, targetQuat);
     }
 
+    var originalRotation;
+    var tweenTime = 3000; // 3 seconds?
+    function quaternionTween(start, end) {
+        var cameraTween = {  t: 0 };
+        originalRotation = start.clone();
+        createjs.Tween.get(cameraTween)
+            .to({ t: 1 }, tweenTime, createjs.Ease.quadInOut)
+            .on("change", (tween) => {
+                var frameRotation = originalRotation.clone();
+                frameRotation.slerp(end, cameraTween.t);
+                start.copy(frameRotation);
+                console.log(frameRotation);
+            })
+            // Don't forget to turn off the manual override once this is done
+            .call(() => isRallying = false)
+    }
 
+    function vectorTween(start, end, time) {
+        //var cameraTween = {  t: 0 };
+        //originalRotation = start.clone();
+        createjs.Tween.get(start)
+            .to(stripVector(end), tweenTime, createjs.Ease.quadInOut)
+            .on("change", (tween) => {
+                //console.log(start);
+            });
+    }
 
     function publishCameraXfo() {
 
@@ -754,21 +810,29 @@ vim3d.view = function (options) {
         // If we are pointing at something rally to there
         var rallyPoint;
         var viewDirection;
+        var viewDistance = 10;
         if (intersections.length > 0) {
             const { point } = intersections[0]
-            // Pull them back towards the camear by 20%
-            const cameraToPoint = point.sub(camera.position);
-            rallyPoint = point.sub(cameraToPoint.multiplyScalar(0.2));
-            viewDirection = cameraToPoint.normalize();
+
+            // The hitpoint is what we are looking at
+            rallyPoint = point.clone();
+
+            // Indicate the direction/distance we are looking towards the rally point
+            const cameraToPoint = point.clone().sub(camera.position);
+            viewDistance = cameraToPoint.length();
+            viewDirection = cameraToPoint.multiplyScalar(1.0 / viewDistance);
+            viewDistance = viewDistance * 0.8;
         }
         else {
             rallyPoint = camera.position;
-            viewDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion);
+            viewDirection = camera.getWorldDirection(cameraForward);
         }
+        console.log("HitPoint: " + rallyPoint);
         publish({
             rallyCall: {
                 rallyPoint,
-                viewDirection
+                viewDirection,
+                viewDistance
             }
         })
         // else
@@ -1279,9 +1343,13 @@ vim3d.view = function (options) {
         resizeCanvas();
         updateObjects();
         updateCamera();
-        updateCameraControls();
         updateSSAO();
-        controls.update();
+        if (!isRallying)
+        {
+            updateCameraControls();
+            controls.update();
+        }
+
         updateCursor();
         throttledPublishCameraXfo();
 
@@ -1319,9 +1387,8 @@ function getMyUuid() {
     // Lets try and keep a constant UUID (for billing reasons, and
     // also when someone re-connects, they can resume their previous avatar)
     var uuid = localStorage.getItem("uuid");
-    if (!uuid)
-    {
-        PubNub.generateUUID();
+    if (!uuid) {
+        uuid = PubNub.generateUUID();
         localStorage.setItem("uuid", uuid);
     }
     return uuid;
@@ -1352,4 +1419,3 @@ function stripQuaternion(q) {
     sq.w = q.w
     return sq;
 }
-//# sourceMappingURL=index.js.map
