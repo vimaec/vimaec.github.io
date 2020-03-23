@@ -3,6 +3,78 @@
 // The bim data pane singleton.
 let _bimDataPaneInstance;
 
+// The bim data object.
+let _bimDataConverter;
+
+/**
+ * JSON bim data lookup
+ * @typedef {{
+ *     StringData: string[],
+ *     FaceToElementId: number[],
+ *     ElementToProperties: Map<number, number[]>}} BimDataPayload
+ */
+
+ /**
+  * Converts ray cast information into bim data.
+  * @class
+  * @property {BimDataPayload} bimData
+  */
+class BimDataConverter {
+
+    /**
+     * Constructor.
+     * @param {BimDataPayload} bimData
+     */
+    constructor(bimData) {
+        this.bimData = bimData;
+    }
+
+    /**
+     * Returns the bim data associated with the intersection.
+     * @param {*} intersection The Threejs intersection object.
+     * @returns string[]
+     */
+    getBimData(intersection) {
+        if (!intersection) {
+            throw new Error("Invalid intersection", intersection);
+        }
+
+        if (!this.bimData) {
+            throw new Error("Invalid bim data", this._bimData);
+        }
+
+        const {
+            distance,
+            point,
+            face,
+            faceIndex: raycastFaceIndex,
+            object: meshObject,
+            uv,
+            uv2,
+            instanceId } = intersection;
+
+        // De-reference the element properties based on the given mesh object and intersected face.
+        const faceGroupIds = meshObject.geometry.getAttribute("facegroupids").array;
+        const elementId = this.bimData.FaceToElementId[faceGroupIds[raycastFaceIndex]];
+        const rawElementProperties = this.bimData.ElementToProperties[elementId];
+
+        // Populate the element information to return.
+        const elementProperties = [];
+        for(let i = 0; i < rawElementProperties.length; i = i + 2) {
+
+            const keyStringIndex = rawElementProperties[i];
+            const valueStringIndex = rawElementProperties[i + 1];
+
+            const key = this.bimData.StringData[keyStringIndex];
+            const value = this.bimData.StringData[valueStringIndex];
+
+            elementProperties.push(`${key}: ${value}`);
+        }
+
+        return elementProperties;
+    }
+}
+
 class BimDataPane extends React.Component {
 
     constructor(props) {
@@ -99,19 +171,14 @@ class BimDataPicker extends React.Component {
         const mouseCoords = vim3d.getEventMouseCoordinates(evt);
         const intersections = vim3d.getRayCastIntersections(mouseCoords);
         if (intersections.length > 0) {
-            const { distance, point, face, faceIndex, object, uv, uv2, instanceId } = intersections[0];
+
+            const bimData = _bimDataConverter.getBimData(intersections[0]);
+
             _bimDataPaneInstance.setBimData(
                 `Title`,
                 `Family`,
                 `Type`,
-                [
-                    `Distance: ${distance}`,
-                    `Face: ${face}`,
-                    `FaceIndex: ${faceIndex}`,
-                    `Object: ${object}`,
-                    `InstanceId: ${instanceId}`,
-                    `Point: ${point}`,
-                ],
+                bimData,
                 `0`
             );
             _bimDataPaneInstance.display(true);
@@ -159,6 +226,16 @@ class Overlay extends React.Component {
 
     constructor(props) {
         super(props);
+    }
+
+    async componentDidMount() {
+        try {
+            const response = await fetch('./models/houston.bim.json');
+            const bimData = await response.json();
+            _bimDataConverter = new BimDataConverter(bimData);
+        } catch (err) {
+            console.error(err);
+        }
     }
 
     render() {

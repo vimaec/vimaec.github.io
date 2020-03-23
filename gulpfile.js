@@ -12,6 +12,7 @@ const gulp = require('gulp'),
 
 const srcFiles = [
     'js/index.js',
+    'js/keyInput.js',
     'node_modules/dat.gui/build/dat.gui.js',
     'node_modules/three/build/three.js',
     'node_modules/three/examples/js/libs/stats.min.js',

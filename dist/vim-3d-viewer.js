@@ -127,7 +127,7 @@ var PropList = /** @class */ (function () {
         configurable: true
     });
     PropList.prototype.find = function (name) {
-        return this.items.find((v) => v.name === name );
+        return this.items.find((v) => v.name === name);
     };
     return PropList;
 }());
@@ -305,33 +305,33 @@ function throttle(func, wait, options) {
     var timeout = null;
     var previous = 0;
     if (!options) options = {};
-    var later = function() {
-      previous = options.leading === false ? 0 : Date.now();
-      timeout = null;
-      result = func.apply(context, args);
-      if (!timeout) context = args = null;
-    };
-    return function() {
-      var now = Date.now();
-      if (!previous && options.leading === false) previous = now;
-      var remaining = wait - (now - previous);
-      context = this;
-      args = arguments;
-      if (remaining <= 0 || remaining > wait) {
-        if (timeout) {
-          clearTimeout(timeout);
-          timeout = null;
-        }
-        previous = now;
+    var later = function () {
+        previous = options.leading === false ? 0 : Date.now();
+        timeout = null;
         result = func.apply(context, args);
         if (!timeout) context = args = null;
-      } else if (!timeout && options.trailing !== false) {
-        // deepcode ignore UseArrowFunction: <please specify a reason of ignoring this>
-        timeout = setTimeout(later, remaining);
-      }
-      return result;
     };
-  };
+    return function () {
+        var now = Date.now();
+        if (!previous && options.leading === false) previous = now;
+        var remaining = wait - (now - previous);
+        context = this;
+        args = arguments;
+        if (remaining <= 0 || remaining > wait) {
+            if (timeout) {
+                clearTimeout(timeout);
+                timeout = null;
+            }
+            previous = now;
+            result = func.apply(context, args);
+            if (!timeout) context = args = null;
+        } else if (!timeout && options.trailing !== false) {
+            // deepcode ignore UseArrowFunction: <please specify a reason of ignoring this>
+            timeout = setTimeout(later, remaining);
+        }
+        return result;
+    };
+};
 
 // END: Deepmerge
 
@@ -379,11 +379,11 @@ var fragmentShader = `
     }
 `;
 
-function fetchText(url){
-  var Httpreq = new XMLHttpRequest(); // a new request
-  Httpreq.open("GET",url,false);
-  Httpreq.send(null);
-  return Httpreq.responseText;
+function fetchText(url) {
+    var Httpreq = new XMLHttpRequest(); // a new request
+    Httpreq.open("GET", url, false);
+    Httpreq.send(null);
+    return Httpreq.responseText;
 }
 
 // Main ARA code
@@ -391,907 +391,980 @@ var vim3d = {
 }
 
 vim3d.view = function (options) {
-        // Pubnub initialization code
-        var myUUID;
-        var pubnub;
+    // Pubnub initialization code
+    var myUUID;
+    var pubnub;
+    var throttledPublishCameraXfo;
 
-        // Variables
-        var avatars = {};
-        var cursors = {};
-        var rayCaster, intersections, cursor;
-        var cameraState = { position: {x:0,y:0,z:0}, rotation: {x:0,y:0,z:0}};
-        var stats, gui, controls;
-        var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
-        var ssaoPass, composer;
+    // Variables
+    var avatars = {};
+    var cursors = {};
+    var rayCaster, intersections, cursor;
+    var cameraState = { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } };
+    var stats, gui, controls;
+    var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
+    var ssaoPass, composer;
 
-        var materialsLoaded = false;
-        var objects = [];
-        var throttledPublishMessage;
+    var materialsLoaded = false;
+    var objects = [];
 
-        // Used with STL example
-        //const material = new THREE.MeshPhongMaterial( { color: 0xff5533, specular: 0x111111, shininess: 200 } );
-        // Default options object (merged with passed options)
-        var defaultOptions = {
-            showStats: false,
-            showGui: false,
-            pubnub: false,
-            SSAO: {
-              enable: true,
-              kernelRadius: 16,
-              minDistance: 0.005,
-              maxDistance: 0.1
-            },
-            loader: {
-                computeVertexNormals: true,
-            },
-            camera: {
-                near: 0.1,
-                far: 15000,
-                fov: 50,
-                zoom: 1,
-                position: { x: 0, y: 5, z: -5 },
-                target: { x: 0, y: -1, z: 0, },
-                controls: {
-                    trackball: false,
-                    enableDamping: false,
-                    dampingFactor: 0.05,
-                    autoRotateSpeed: 0,
-                    rotateSpeed: 1.0,
-                    enablePan: true,
-                    panSpeed: 1.0,
-                    screenSpacePanning: true,
-                    pixelPerKeyPress: 7.0,
-                    zoomSpeed: 1.0,
-                }
-            },
-            background: {
-                // color: { r: 0x72, g: 0x64, b: 0x5b, }
-                // color: { r: 215, g:217, b:215 }
-                color: { r: 125, g:125, b:125 }
-            },
-            plane: {
-                show: false,
-                material: {
-                    color: { r: 0x99, g: 0x99, b: 0x99, },
-                    specular: { r: 0x10, g: 0x10, b: 0x10, }
-                },
-                position: {
-                    x: 0, y: 0, z: 0
-                }
-            },
-            cursor: {
-                show: true,
-                localColor: { r: 0x00, g: 0x00, b: 0x88 },
-                remoteColor: { r: 0x00, g: 0x88, b: 0x00 },
-                scale: 0.2,
-            },
-            light1: {
-                // TODO: the positions of the lights are all wrong.
-                direction: { x: 0.3, y: -0.75, z: 0.3 },
-                color: { r: 0xFF, g: 0xFF, b: 0xFF },
-                intensity: 1.35,
-            },
-            avatar: {
-                width: 1,
-                height: 1,
-                depth: 0.2,
-                color: { r: 0x00, g: 0x55, b: 0xFF },
-            },
-            object: {
-                scale: 0.01,
-                position: { x: 0, y: 0, z: 0 },
-                rotation: { x: 0, y: 0, z: 0 },
-                categories: {
-
-                },
-                material: {
-                    color: { r: 0x00, g: 0x55, b: 0xFF },
-                    emissive: { r: 0x00, g: 0x00, b: 0x00 },
-                    specular: { r: 0x11, g: 0x11, b: 0x11 },
-                    flatShading: true,
-                    shininess: 30,
-                    wireframe: false,
-                }
+    // Used with STL example
+    //const material = new THREE.MeshPhongMaterial( { color: 0xff5533, specular: 0x111111, shininess: 200 } );
+    // Default options object (merged with passed options)
+    var defaultOptions = {
+        showStats: false,
+        showGui: false,
+        pubnub: false,
+        SSAO: {
+            enable: true,
+            kernelRadius: 16,
+            minDistance: 0.005,
+            maxDistance: 0.1
+        },
+        loader: {
+            computeVertexNormals: true,
+        },
+        camera: {
+            near: 0.001,
+            far: 1,
+            fov: 50,
+            zoom: 1,
+            position: { x: 0, y: 5, z: -5 },
+            target: { x: 0, y: -1, z: 0, },
+            controls: {
+                trackball: false,
+                enableDamping: false,
+                dampingFactor: 0.05,
+                autoRotateSpeed: 0,
+                rotateSpeed: 1.0,
+                enablePan: true,
+                panSpeed: 1.0,
+                screenSpacePanning: true,
+                pixelPerKeyPress: 7.0,
+                zoomSpeed: 1.0,
             }
-        };
+        },
+        background: {
+            // color: { r: 0x72, g: 0x64, b: 0x5b, }
+            // color: { r: 215, g:217, b:215 }
+            color: { r: 125, g: 125, b: 125 }
+        },
+        plane: {
+            show: false,
+            material: {
+                color: { r: 0x99, g: 0x99, b: 0x99, },
+                specular: { r: 0x10, g: 0x10, b: 0x10, }
+            },
+            position: {
+                x: 0, y: 0, z: 0
+            }
+        },
+        cursor: {
+            show: true,
+            localColor: { r: 0x00, g: 0x00, b: 0x88 },
+            remoteColor: { r: 0x00, g: 0x88, b: 0x00 },
+            scale: 0.2,
+        },
+        light1: {
+            // TODO: the positions of the lights are all wrong.
+            direction: { x: 0.3, y: -0.75, z: 0.3 },
+            color: { r: 0xFF, g: 0xFF, b: 0xFF },
+            intensity: 1.35,
+        },
+        avatar: {
+            width: 1,
+            height: 1,
+            depth: 0.2,
+            color: { r: 0x00, g: 0x55, b: 0xFF },
+        },
+        object: {
+            scale: 0.01,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            categories: {
 
-        // Get the raycaster extension functions from MeshBVHLib (https://github.com/gkjohnson/three-mesh-bvh)
-        THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
-        THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
-        THREE.Mesh.prototype.raycast = acceleratedRaycast;
-
-        // Initialization of scene, loading of objects, and launch animation loop
-        init();
-        loadFromSettings(settings.url, settings.mtlurl);
-        animate();
-        function isColor(obj) {
-            return typeof (obj) === 'object' && 'r' in obj && 'g' in obj && 'b' in obj;
+            },
+            material: {
+                color: { r: 0x00, g: 0x55, b: 0xFF },
+                emissive: { r: 0x00, g: 0x00, b: 0x00 },
+                specular: { r: 0x11, g: 0x11, b: 0x11 },
+                flatShading: true,
+                shininess: 30,
+                wireframe: false,
+            }
         }
-        function toColor(c) {
-            if (!isColor(c))
-                throw new Error("Not a color");
-            return new THREE.Color(c.r / 255, c.g / 255, c.b / 255);
-        }
-        function toEuler(rot) {
-            return new THREE.Euler(rot.x * Math.PI / 180, rot.y * Math.PI / 180, rot.z * Math.PI / 180);
-        }
-        function updateMaterial(targetMaterial, settings) {
-            /*
-            if ('color' in settings)
-                targetMaterial.color = toColor(settings.color);
-            if ('flatShading' in settings)
-                targetMaterial.flatShading = settings.flatShading;
-            if ('emissive' in settings)
-                targetMaterial.emissive = toColor(settings.emissive);
-            if ('specular' in settings)
-                targetMaterial.specular = toColor(settings.specular);
-            if ('wireframe' in settings)
-                targetMaterial.wireframe = settings.wireframe;
-            if ('shininess' in settings)
-                targetMaterial.shininess = settings.shininess;
-                */
+    };
 
-          var viewProj = material.uniforms.viewProjectionMatrix.value;
-          viewProj.copy(camera.projectionMatrix);
-          viewProj.multiply(camera.matrixWorldInverse);
+    // Get the raycaster extension functions from MeshBVHLib (https://github.com/gkjohnson/three-mesh-bvh)
+    THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+    THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+    THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
-          var light1Direction = material.uniforms.lightDirection.value;
-          var value = ('light1' in settings)
+    // Initialization of scene, loading of objects, and launch animation loop
+    init();
+    loadFromSettings(settings.url, settings.mtlurl);
+    animate();
+    function isColor(obj) {
+        return typeof (obj) === 'object' && 'r' in obj && 'g' in obj && 'b' in obj;
+    }
+    function toColor(c) {
+        if (!isColor(c))
+            throw new Error("Not a color");
+        return new THREE.Color(c.r / 255, c.g / 255, c.b / 255);
+    }
+    function toEuler(rot) {
+        return new THREE.Euler(rot.x * Math.PI / 180, rot.y * Math.PI / 180, rot.z * Math.PI / 180);
+    }
+    function updateMaterial(targetMaterial, settings) {
+        /*
+        if ('color' in settings)
+            targetMaterial.color = toColor(settings.color);
+        if ('flatShading' in settings)
+            targetMaterial.flatShading = settings.flatShading;
+        if ('emissive' in settings)
+            targetMaterial.emissive = toColor(settings.emissive);
+        if ('specular' in settings)
+            targetMaterial.specular = toColor(settings.specular);
+        if ('wireframe' in settings)
+            targetMaterial.wireframe = settings.wireframe;
+        if ('shininess' in settings)
+            targetMaterial.shininess = settings.shininess;
+            */
+
+        var viewProj = material.uniforms.viewProjectionMatrix.value;
+        viewProj.copy(camera.projectionMatrix);
+        viewProj.multiply(camera.matrixWorldInverse);
+
+        var light1Direction = material.uniforms.lightDirection.value;
+        var value = ('light1' in settings)
             ? new toVec(settings.light1.direction)
             : new THREE.Vector3(0.5, -0.5, 0.3)
 
-          light1Direction.copy(value.normalize());
+        light1Direction.copy(value.normalize());
 
-          material.uniforms.lightIntensity.value = ('light1' in settings)
+        material.uniforms.lightIntensity.value = ('light1' in settings)
             ? settings.light1.intensity
             : 1.0;
+    }
+    function initCamera() {
+        updateCamera();
+        camera.position.copy(toVec(settings.camera.position));
+        cameraTarget = toVec(settings.camera.target);
+        camera.lookAt(cameraTarget);
+    }
+    function updateCamera() {
+        camera.fov = settings.camera.fov;
+        camera.zoom = settings.camera.zoom;
+        camera.near = settings.camera.near;
+        camera.far = settings.camera.far;
+    }
+    function updateCameraControls() {
+        if (!controls || controls.trackball != settings.camera.controls.trackball) {
+            controls = settings.camera.controls.trackball
+                ? new THREE.TrackballControls(camera, renderer.domElement)
+                : new THREE.OrbitControls(camera, renderer.domElement);
+            controls.trackball = settings.camera.controls.trackball;
         }
-        function initCamera() {
-            updateCamera();
-            camera.position.copy(toVec(settings.camera.position));
-            cameraTarget = toVec(settings.camera.target);
-            camera.lookAt(cameraTarget);
-        }
-        function updateCamera() {
-            camera.fov = settings.camera.fov;
-            camera.zoom = settings.camera.zoom;
-            camera.near = settings.camera.near;
-            camera.far = settings.camera.far;
-        }
-        function updateCameraControls() {
-            if (!controls || controls.trackball != settings.camera.controls.trackball)
-            {
-                controls = settings.camera.controls.trackball
-                    ? new THREE.TrackballControls(camera, renderer.domElement)
-                    : new THREE.OrbitControls(camera, renderer.domElement);
-                controls.trackball = settings.camera.controls.trackball;
-            }
-            controls.enableDamping = settings.camera.controls.enableDamping; // an animation loop is required when either damping or auto-rotation are enabled
-            controls.dampingFactor = settings.camera.controls.dampingFactor;
-            controls.autoRotate = settings.camera.controls.autoRotateSpeed > 0.0001 || settings.camera.controls.autoRotateSpeed< -0.0001;
-            controls.autoRotateSpeed = settings.camera.autoRotateSpeed;
-            controls.rotateSpeed = settings.camera.controls.rotateSpeed;
-            controls.enablePan = settings.camera.controls.enablePan;
-            controls.panSpeed = settings.camera.controls.panSpeed;
-            controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
-            controls.keySpanSpeed = settings.camera.controls.pixelPerKeyPress;
-            controls.zoomSpeed = settings.camera.controls.zoomSpeed;
-            controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
-        }
+        controls.enableDamping = settings.camera.controls.enableDamping; // an animation loop is required when either damping or auto-rotation are enabled
+        controls.dampingFactor = settings.camera.controls.dampingFactor;
+        controls.autoRotate = settings.camera.controls.autoRotateSpeed > 0.0001 || settings.camera.controls.autoRotateSpeed < -0.0001;
+        controls.autoRotateSpeed = settings.camera.autoRotateSpeed;
+        controls.rotateSpeed = settings.camera.controls.rotateSpeed;
+        controls.enablePan = settings.camera.controls.enablePan;
+        controls.panSpeed = settings.camera.controls.panSpeed;
+        controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
+        controls.keySpanSpeed = settings.camera.controls.pixelPerKeyPress;
+        controls.zoomSpeed = settings.camera.controls.zoomSpeed;
+        controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
+    }
 
-        function updateSSAO() {
-          if (settings.SSAO.enable)
-          {
+    function updateSSAO() {
+        if (settings.SSAO.enable) {
             ssaoPass.kernelRadius = settings.SSAO.kernelRadius;
             ssaoPass.minDistance = settings.SSAO.minDistance;
             ssaoPass.maxDistance = settings.SSAO.maxDistance;
-          }
         }
+    }
 
-        // Called every frame in case settings are updated
-        function updateScene() {
-            scene.background = toColor(settings.background.color);
-            // TODO: do we really need fog? I think it is useless.
-            //scene.fog = new THREE.Fog( settings.fog.color, settings.fog.near, settings.fog.far );
-            plane.visible = settings.plane.show;
-            updateMaterial(plane.material, settings.plane.material);
-            plane.position.copy(toVec(settings.plane.position));
-            // light1.position.copy(toVec(settings.light1.position));
-            // light1.color = toColor(settings.light1.color);
-            // light1.intensity = settings.light1.intensity;
-            // light2.position.copy(toVec(settings.light2.position));
-            // light2.color = toColor(settings.light2.color);
-            // light2.intensity = settings.light2.intensity;
-            // sunlight.skyColor = toColor(settings.sunlight.skyColor);
-            //sunlight.groundColor = toColor(settings.sunlight.groundColor);
-            //sunlight.intensity = settings.sunlight.intensity;
-        }
-        function updateObjects() {
-            for (var child of objects) {
-                //child.castShadow = true;
-                //child.receiveShadow = true;
-                var scale = scalarToVec(settings.object.scale);
-                child.scale.copy(scale);
-                if (!materialsLoaded) {
-                    updateMaterial(material, settings);
-                    child.material = material;
-                }
-                child.position.copy(settings.object.position);
-                child.rotation.copy(toEuler(settings.object.rotation));
+    // Called every frame in case settings are updated
+    function updateScene() {
+        scene.background = toColor(settings.background.color);
+        // TODO: do we really need fog? I think it is useless.
+        //scene.fog = new THREE.Fog( settings.fog.color, settings.fog.near, settings.fog.far );
+        plane.visible = settings.plane.show;
+        updateMaterial(plane.material, settings.plane.material);
+        plane.position.copy(toVec(settings.plane.position));
+        // light1.position.copy(toVec(settings.light1.position));
+        // light1.color = toColor(settings.light1.color);
+        // light1.intensity = settings.light1.intensity;
+        // light2.position.copy(toVec(settings.light2.position));
+        // light2.color = toColor(settings.light2.color);
+        // light2.intensity = settings.light2.intensity;
+        // sunlight.skyColor = toColor(settings.sunlight.skyColor);
+        //sunlight.groundColor = toColor(settings.sunlight.groundColor);
+        //sunlight.intensity = settings.sunlight.intensity;
+    }
+    function updateObjects() {
+        for (var child of objects) {
+            //child.castShadow = true;
+            //child.receiveShadow = true;
+            child.scale.setScalar(settings.object.scale);
+            if (!materialsLoaded) {
+                updateMaterial(material, settings);
+                child.material = material;
             }
-            cursor.visible = settings.cursor.show;
-            cursor.material.color = toColor(settings.cursor.localColor);
-            cursor.scale.copy(scalarToVec(settings.cursor.scale));
-            for (var k in cursors) {
-                var c = cursors[k];
-                c.material.color = toColor(settings.cursor.remoteColor);
-                c.scale.copy(scalarToVec(settings.cursor.scale));
-            }
+            child.position.copy(settings.object.position);
+            child.quaternion.setFromEuler(toEuler(settings.object.rotation));
         }
-        function objectToPropDesc(obj, pdm) {
-            // TODO: look for common patterns (colors, positions, angles) and process these specially.
-            for (var k in obj) {
-                var v = obj[k];
-                switch (typeof (v)) {
-                    case 'number':
-                        pdm[k] = floatProp(v).setName(k);
-                        break;
-                    case 'string':
-                        pdm[k] = stringProp(v).setName(k);
-                        break;
-                    case 'boolean':
-                        pdm[k] = boolProp(v).setName(k);
-                        break;
-                    case 'object':
-                        pdm[k] = objectToPropDesc(v, {});
-                        break;
-                }
-            }
-            return pdm;
+        cursor.visible = settings.cursor.show;
+        cursor.material.color = toColor(settings.cursor.localColor);
+        cursor.scale.setScalar(settings.cursor.scale);
+        for (var k in cursors) {
+            var c = cursors[k];
+            c.material.color = toColor(settings.cursor.remoteColor);
+            c.scale.setScalar(settings.cursor.scale);
         }
-        function getOptionsDescriptor() {
-            return objectToPropDesc(defaultOptions, {});
-        }
-        function getOrCreateDownloadLink() {
-            var downloadLinkId = "ara_download_link_id";
-            var downloadLink = document.getElementById(downloadLinkId);
-            if (!downloadLink) {
-                downloadLink = document.createElement("a");
-                downloadLink.id = downloadLinkId;
-                downloadLink.style.display = "none";
-                document.body.appendChild(downloadLink);
-            }
-            return downloadLink;
-        }
-        //https://stackoverflow.com/questions/17836273/export-javascript-data-to-csv-file-without-server-interaction
-        function exportFile() {
-            var downloadLink = getOrCreateDownloadLink();
-            downloadLink.download = 'model.g3d';
-            // TODO: fill out the G3D information in the blob.
-            var data = new Blob();
-            downloadLink.href = window.URL.createObjectURL(data);
-            downloadLink.click();
-        }
-        function loadAvatar(uuid) {
-            if (uuid == myUUID)
-               return;
-            if (!(uuid in avatars))
-            {
-                console.log("Creating avatar");
-                var mesh = createAvatar();
-                avatars[uuid] = mesh;
-            }
-            if (!(uuid in cursors))
-            {
-                console.log("Creating avatar cursor");
-                var mesh = createCursorMesh(false);
-                cursors[uuid] = mesh;
+    }
+    function objectToPropDesc(obj, pdm) {
+        // TODO: look for common patterns (colors, positions, angles) and process these specially.
+        for (var k in obj) {
+            var v = obj[k];
+            switch (typeof (v)) {
+                case 'number':
+                    pdm[k] = floatProp(v).setName(k);
+                    break;
+                case 'string':
+                    pdm[k] = stringProp(v).setName(k);
+                    break;
+                case 'boolean':
+                    pdm[k] = boolProp(v).setName(k);
+                    break;
+                case 'object':
+                    pdm[k] = objectToPropDesc(v, {});
+                    break;
             }
         }
-        function unloadAvatar(uuid) {
-            if (uuid in avatars) {
-                scene.remove(avatars[uuid]);
-                delete avatars[uuid];
-            }
-            if (uuid in cursors) {
-                scene.remove(cursors[uuid]);
-                delete cursors[uuid];
-            }
+        return pdm;
+    }
+    function getOptionsDescriptor() {
+        return objectToPropDesc(defaultOptions, {});
+    }
+    function getOrCreateDownloadLink() {
+        var downloadLinkId = "ara_download_link_id";
+        var downloadLink = document.getElementById(downloadLinkId);
+        if (!downloadLink) {
+            downloadLink = document.createElement("a");
+            downloadLink.id = downloadLinkId;
+            downloadLink.style.display = "none";
+            document.body.appendChild(downloadLink);
         }
+        return downloadLink;
+    }
+    //https://stackoverflow.com/questions/17836273/export-javascript-data-to-csv-file-without-server-interaction
+    function exportFile() {
+        var downloadLink = getOrCreateDownloadLink();
+        downloadLink.download = 'model.g3d';
+        // TODO: fill out the G3D information in the blob.
+        var data = new Blob();
+        downloadLink.href = window.URL.createObjectURL(data);
+        downloadLink.click();
+    }
+    function loadAvatar(uuid) {
+        if (uuid == myUUID)
+            return;
+        if (!(uuid in avatars)) {
+            console.log("Creating avatar");
+            var mesh = createAvatar();
+            avatars[uuid] = mesh;
+        }
+        if (!(uuid in cursors)) {
+            console.log("Creating avatar cursor");
+            var mesh = createCursorMesh(false);
+            cursors[uuid] = mesh;
+        }
+    }
+    function unloadAvatar(uuid) {
+        if (uuid in avatars) {
+            scene.remove(avatars[uuid]);
+            delete avatars[uuid];
+        }
+        if (uuid in cursors) {
+            scene.remove(cursors[uuid]);
+            delete cursors[uuid];
+        }
+    }
 
-        function onMessage(message) {
+    function onMessage(uuid, message) {
+        // We never care about our own messages
+        if (uuid == myUUID)
+            return;
 
-            if (message.uuid == myUUID)
-               return;
-            loadAvatar(message.uuid);
-            var avatar = avatars[message.uuid];
-            if (avatar && message.camera) {
-                avatar.position.set(message.camera.position.x, message.camera.position.y, message.camera.position.z);
-                avatar.rotation.set(message.camera.rotation.x, message.camera.rotation.y, message.camera.rotation.z);
-            }
-            var remoteCursor = cursors[message.uuid];
-            if (remoteCursor && message.cursor)
-                remoteCursor.position.set(message.cursor.position.x, message.cursor.position.y, message.cursor.position.z);
+        const { camera, cursor } = message;
+        if (camera != null)
+            onUpdateAvatar(uuid, camera, cursor)
+
+        const { rallyCall } = message;
+        if (rallyCall != null)
+            onRallyCall(rallyCall)
+    }
+
+    function onUpdateAvatar(uuid, avatarXfo, cursorXfo) {
+        loadAvatar(uuid);
+        var avatar = avatars[uuid];
+        if (avatar) {
+            if (avatarXfo.position)
+                setVector(avatar.position, avatarXfo.position);
+            if (avatarXfo.rotation)
+                setQuaternion(avatar.quaternion, avatarXfo.rotation);
         }
-        function publishMessage() {
-            if (!pubnub)
-                return;
+        var remoteCursor = cursors[uuid];
+        if (remoteCursor && cursorXfo)
+            setVector(remoteCursor.position, cursorXfo.position);
+    }
+
+    var isRallying = false;
+    var rotationMatrix = new THREE.Matrix4();
+    var upVector = new THREE.Vector3(0, 1, 0);
+    var targetPosition = new THREE.Vector3();
+    var cameraForward = new THREE.Vector3();
+    var targetQuat = new THREE.Quaternion();
+
+    function onRallyCall(rallyCall) {
+
+        // We set the camera xfo
+        const { rallyPoint, viewDirection, viewDistance } = rallyCall;
+
+        // Disable user input, and set it the orbit target to be the highlighted object
+        isRallying = true;
+        controls.target.copy(rallyPoint);
+
+        // Our offset moves us backwards from the rallyPoint but still facing towards it
+        setVector(targetPosition, rallyPoint);
+        var zOffset = camera.getWorldDirection(cameraForward)
+            .multiplyScalar(-viewDistance);
+        // If our offset is not in the same direction as the viewDirection, then 
+        // we negate the offset X/Z values to flip us around
+        // This is a very cheap way to put everyone in the same hemipshere
+        // (note: this is GT because our offset is the inverse of the direction we actually face)
+        if (zOffset.dot(viewDirection) > 0) {
+            zOffset.x *= -1;
+            zOffset.z *= -1;
+        }
+        targetPosition.add(zOffset);
+        vectorTween(camera.position, targetPosition);
+
+        // Now rotate to look at rally point.  This theoretically should be a no-op
+        rotationMatrix.lookAt(targetPosition, rallyPoint, upVector);
+        targetQuat.setFromRotationMatrix(rotationMatrix);
+        quaternionTween(camera.quaternion, targetQuat);
+    }
+
+    var originalRotation;
+    var tweenTime = 3000; // 3 seconds?
+    function quaternionTween(start, end) {
+        var cameraTween = {  t: 0 };
+        originalRotation = start.clone();
+        createjs.Tween.get(cameraTween)
+            .to({ t: 1 }, tweenTime, createjs.Ease.quadInOut)
+            .on("change", (tween) => {
+                var frameRotation = originalRotation.clone();
+                frameRotation.slerp(end, cameraTween.t);
+                start.copy(frameRotation);
+                console.log(frameRotation);
+            })
+            // Don't forget to turn off the manual override once this is done
+            .call(() => isRallying = false)
+    }
+
+    function vectorTween(start, end, time) {
+        //var cameraTween = {  t: 0 };
+        //originalRotation = start.clone();
+        createjs.Tween.get(start)
+            .to(stripVector(end), tweenTime, createjs.Ease.quadInOut)
+            .on("change", (tween) => {
+                //console.log(start);
+            });
+    }
+
+    function publishCameraXfo() {
+
+        var cursor = null;
+        if (intersections.length > 0) {
+            cursor = {
+                position: stripVector(intersections[0].point),
+                faceIndex: intersections[0].faceIndex,
+                distance: intersections[0].distance
+            };
+        }
+        var message = {
+            cursor: cursor,
+            camera: {
+                position: stripVector(camera.position),
+                rotation: stripQuaternion(camera.quaternion)
+            }
+        }
+        publish(message);
+    }
+
+    function publishRallyCall() {
+        // If we are pointing at something rally to there
+        var rallyPoint;
+        var viewDirection;
+        var viewDistance = 10;
+        if (intersections.length > 0) {
+            const { point } = intersections[0]
+
+            // The hitpoint is what we are looking at
+            rallyPoint = point.clone();
+
+            // Indicate the direction/distance we are looking towards the rally point
+            const cameraToPoint = point.clone().sub(camera.position);
+            viewDistance = cameraToPoint.length();
+            viewDirection = cameraToPoint.multiplyScalar(1.0 / viewDistance);
+            viewDistance = viewDistance * 0.8;
+        }
+        else {
+            rallyPoint = camera.position;
+            viewDirection = camera.getWorldDirection(cameraForward);
+            // We want the users to appear in front of us, looking at us
+            viewDirection.multiplyScalar(-1);
+        }
+        console.log("HitPoint: " + rallyPoint);
+        publish({
+            rallyCall: {
+                rallyPoint,
+                viewDirection,
+                viewDistance
+            }
+        })
+        // else
+    }
+
+    function publish(message) {
+        if (!pubnub)
+            return;
+
+        // https://stackoverflow.com/questions/54433325/unhandled-promise-exception
+        pubnub.publish({
+            channel: 'my_channel',
+            message: message
+        }).catch(error => console.log(error));
+    }
+
+    function createCursorMesh(localOrRemote) {
+        var color = localOrRemote ? settings.cursor.localColor : settings.cursor.remoteColor;
+        var c = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(0.5), new THREE.MeshPhongMaterial({ color: color }));
+        c.scale.setScalar(settings.cursor.scalar);
+        c.visible = settings.cursor.show;
+        scene.add(c);
+        return c;
+    }
+
+    function createAvatar() {
+        var geometry = new THREE.BoxBufferGeometry(settings.avatar.width, settings.avatar.height, settings.avatar.depth);
+        var material = new THREE.MeshPhongMaterial({ color: toColor(settings.avatar.color) });
+        var mesh = new THREE.Mesh(geometry, material)
+        scene.add(mesh);
+        return mesh;
+    }
+
+    // Scene initialization
+    function init() {
+        // publishes PubNub message every X msec
+        throttledPublishCameraXfo = throttle(publishCameraXfo, 200);
+
+        // Initialize the settings
+        settings = (new DeepMerge()).deepMerge(defaultOptions, options, undefined);
+        // If a canvas is given, we will draw in it.
+        var canvas = document.getElementById(settings.canvasId);
+        if (!canvas) {
+            // Add to a div in the web page.
+            canvas = document.createElement('canvas');
+            document.body.appendChild(canvas);
+        }
+        renderer = new THREE.WebGLRenderer({ canvas: canvas });
+        // Create the camera and size everything appropriately
+        camera = new THREE.PerspectiveCamera();
+        // Initialize the normalized moust position for ray-casting.
+        mouse = new THREE.Vector2();
+
+        // Create scene object
+        scene = new THREE.Scene();
+
+        // Used for hit-testing (see https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_cubes.html)
+        rayCaster = new THREE.Raycaster();
+        rayCaster.firstHitOnly = true;
+        // Create a property descriptor
+        var propDesc = getOptionsDescriptor();
+        // Create a property list from the descriptor
+        var props = new PropList(propDesc);
+        // Iniitlaize the property list values
+        props.fromJson(options);
+        if (settings.showGui) {
+            // Create a new DAT.gui controller
+            gui = new dat.GUI({ autoPlace: false, closeOnTop: true, scrollable: true });
+            document.getElementById("datguicontainer").appendChild(gui.domElement);
+            // Bind the properties to the DAT.gui controller, returning the scene when it updates
+            bindControls(props, gui, function () {
+                settings = props.toJson;
+                updateScene();
+            });
+            // TODO: enable this.
             /*
-            //var newCamera = event.target.object;
-            if (camera.position.x == cameraState.position.x
-            && camera.position.y == cameraState.position.y
-            && camera.position.z == cameraState.position.z
-            && camera.rotation.x == cameraState.rotation.x
-            && camera.rotation.y == cameraState.rotation.y
-            && camera.rotation.z == cameraState.rotation.z)
-                return;
-
-            cameraState.position.x = newCamera.position.x;
-            cameraState.position.y = newCamera.position.y;
-            cameraState.position.z = newCamera.position.z;
-            cameraState.rotation.x = newCamera.rotation.x;
-            cameraState.rotation.y = newCamera.rotation.y;
-            cameraState.rotation.z = newCamera.rotation.z;
+                var obj = { export: exportFile };
+                gui.add(obj, 'export').name("Export to G3D ... ");
             */
-            var cursor = null;
-            if (intersections.length > 0)
-            {
-                cursor = {
-                    position: {
-                        x: intersections[0].point.x,
-                        y: intersections[0].point.y,
-                        z: intersections[0].point.z,
-                    },
-                    faceIndex: intersections[0].faceIndex,
-                    distance: intersections[0].distance
-                };
-            }
-            // https://stackoverflow.com/questions/54433325/unhandled-promise-exception
-            pubnub.publish({
-                channel: 'my_channel',
-                message: {
-                    uuid : myUUID,
-                    cursor : cursor,
-                    camera : {
-                        position: {
-                            x: camera.position.x,
-                            y: camera.position.y,
-                            z: camera.position.z,
-                        },
-                        rotation: {
-                            x: camera.rotation.x,
-                            y: camera.rotation.y,
-                            z: camera.rotation.z,
-                        }
-                    }
-                }
-            }).catch(error => console.log(error));
+        }
+        // Ground
+        plane = new THREE.Mesh(new THREE.PlaneBufferGeometry(1000, 1000), new THREE.MeshPhongMaterial());
+        plane.rotation.x = -Math.PI / 2;
+        plane.receiveShadow = true;
+        scene.add(plane);
+        // Cursor
+        cursor = createCursorMesh(true);
+        // Lights
+        sunlight = new THREE.HemisphereLight();
+        scene.add(sunlight);
+        //light1 = addShadowedLight(scene);
+        //light2 = addShadowedLight(scene);
+        // Material
+
+        //material = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
+
+        material = new THREE.RawShaderMaterial({
+            uniforms: {
+                lightDirection: { value: new THREE.Vector3() },
+                lightIntensity: { value: 1.0 },
+                viewProjectionMatrix: { value: new THREE.Matrix4() }
+            },
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            side: THREE.DoubleSide
+        });
+
+        // postprocessing
+
+        composer = new THREE.EffectComposer(renderer);
+
+        ssaoPass = new THREE.SSAOPass(scene, camera);
+        ssaoPass.kernelRadius = 16;
+        composer.addPass(ssaoPass);
+
+        // THREE JS renderer
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Initial scene update: happens if controls change
+        resizeCanvas(true);
+        updateScene();
+
+        // Creates and updates camera controls
+        updateCameraControls();
+
+        // Stats display
+        if (settings.showStats) {
+            stats = new Stats();
+            document.body.appendChild(stats.dom);
         }
 
-        function createCursorMesh( localOrRemote)
-        {
-            var color = localOrRemote ? settings.cursor.localColor : settings.cursor.remoteColor;
-            var c = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(0.5), new THREE.MeshPhongMaterial({color: color}));
-            c.scale.set(scalarToVec(settings.cursor.scale));
-            c.visible = settings.cursor.show;
-            scene.add(c);
-            return c;
-        }
+        // Add a mouse move listener
+        document.addEventListener('mousemove', onDocumentMouseMove, false);
 
-        function createAvatar()
-        {
-            var geometry = new THREE.BoxBufferGeometry(settings.avatar.width, settings.avatar.height, settings.avatar.depth);
-            var material = new THREE.MeshPhongMaterial({ color: toColor(settings.avatar.color) } );
-            var mesh = new THREE.Mesh(geometry, material)
-            scene.add(mesh);
-            return mesh;
-        }
+        // Add a resize event listener
+        window.addEventListener('resize', onWindowResize, false);
 
-        // Scene initialization
-        function init()
-        {
-            // publishes PubNub message every X msec
-            throttledPublishMessage = throttle(publishMessage, 200);
+        // Initial set-up of the camera
+        initCamera();
 
-            // Initialize the settings
-            settings = (new DeepMerge()).deepMerge(defaultOptions, options, undefined);
-            // If a canvas is given, we will draw in it.
-            var canvas = document.getElementById(settings.canvasId);
-            if (!canvas) {
-                // Add to a div in the web page.
-                canvas = document.createElement('canvas');
-                document.body.appendChild(canvas);
-            }
-            renderer = new THREE.WebGLRenderer({ canvas: canvas });
-            // Create the camera and size everything appropriately
-            camera = new THREE.PerspectiveCamera();
-            // Initialize the normalized moust position for ray-casting.
-            mouse = new THREE.Vector2();
-
-            // Create scene object
-            scene = new THREE.Scene();
-
-            // Used for hit-testing (see https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_cubes.html)
-            rayCaster = new THREE.Raycaster();
-            rayCaster.firstHitOnly = true;
-            // Create a property descriptor
-            var propDesc = getOptionsDescriptor();
-            // Create a property list from the descriptor
-            var props = new PropList(propDesc);
-            // Iniitlaize the property list values
-            props.fromJson(options);
-            if (settings.showGui) {
-                // Create a new DAT.gui controller
-                gui = new dat.GUI({ autoPlace: false, closeOnTop: true, scrollable: true });
-                document.getElementById("datguicontainer").appendChild(gui.domElement);
-                // Bind the properties to the DAT.gui controller, returning the scene when it updates
-                bindControls(props, gui, function () {
-                    settings = props.toJson;
-                    updateScene();
-                });
-                // TODO: enable this.
-                /*
-                    var obj = { export: exportFile };
-                    gui.add(obj, 'export').name("Export to G3D ... ");
-                */
-            }
-            // Ground
-            plane = new THREE.Mesh(new THREE.PlaneBufferGeometry(1000, 1000), new THREE.MeshPhongMaterial());
-            plane.rotation.x = -Math.PI / 2;
-            plane.receiveShadow = true;
-            scene.add(plane);
-            // Cursor
-            cursor = createCursorMesh(true);
-            // Lights
-            sunlight = new THREE.HemisphereLight();
-            scene.add(sunlight);
-            //light1 = addShadowedLight(scene);
-            //light2 = addShadowedLight(scene);
-            // Material
-
-            //material = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
-
-            material = new THREE.RawShaderMaterial( {
-                uniforms: {
-                  lightDirection: { value: new THREE.Vector3() },
-                  lightIntensity: { value: 1.0 },
-                  viewProjectionMatrix: { value: new THREE.Matrix4() }
+        // Set-up pubnub
+        if (settings.pubnub) {
+            myUUID = getMyUuid();
+            pubnub = new PubNub({
+                publishKey: "pub-c-39d36562-7867-4ddc-b7e2-9eaaa344f727",
+                subscribeKey: "sub-c-e742a396-5e51-11ea-b226-5aef0d0da10f",
+                uuid: myUUID
+            });
+            pubnub.addListener({
+                message: function (m) {
+                    onMessage(m.publisher, m.message);
                 },
-                vertexShader: vertexShader,
-                fragmentShader: fragmentShader,
-                side: THREE.DoubleSide
-            } );
-
-            // postprocessing
-
-            composer = new THREE.EffectComposer(renderer);
-
-            ssaoPass = new THREE.SSAOPass( scene, camera );
-            ssaoPass.kernelRadius = 16;
-            composer.addPass( ssaoPass );
-
-            // THREE JS renderer
-            renderer.setPixelRatio(window.devicePixelRatio);
-
-            // Initial scene update: happens if controls change
-            resizeCanvas(true);
-            updateScene();
-
-            // Creates and updates camera controls
-            updateCameraControls();
-
-            // Stats display
-            if (settings.showStats) {
-                stats = new Stats();
-                document.body.appendChild(stats.dom);
-            }
-
-            // Add a mouse move listener
-            document.addEventListener( 'mousemove', onDocumentMouseMove, false );
-
-            // Add a resize event listener
-            window.addEventListener( 'resize', onWindowResize, false );
-
-            // Initial set-up of the camera
-            initCamera();
-
-            // Set-up pubnub
-            if (settings.pubnub)
-            {
-                myUUID = PubNub.generateUUID();
-                pubnub = new PubNub({
-                    publishKey: "pub-c-39d36562-7867-4ddc-b7e2-9eaaa344f727",
-                    subscribeKey: "sub-c-e742a396-5e51-11ea-b226-5aef0d0da10f",
-                    uuid: myUUID
-                });
-                pubnub.addListener({
-                    message: function(m) {
-                        onMessage(m.message);
-                    },
-                    presence: function(m) {
-                        if (m.action == "join") {
-                            loadAvatar(m.uuid);
-                        }
-                        else if (m.action == "leave") {
-                            unloadAvatar(m.uuid);
-                        }
-                        //console.log("presence message: " + JSON.stringify(m));
+                presence: function (m) {
+                    if (m.action == "join") {
+                        loadAvatar(m.uuid);
                     }
-                });
-                pubnub.subscribe({
-                    channels: ['my_channel'],
-                    withPresence: true
-                });
-            }
-
-            vim3d.scene = scene;
-            vim3d.settings = settings;
-            vim3d.renderer = renderer;
-            vim3d.objects = objects;
-            vim3d.getEventMouseCoordinates = getEventMouseCoordinates;
-            vim3d.getRayCastIntersections = getRayCastIntersections;
+                    else if (m.action == "leave") {
+                        unloadAvatar(m.uuid);
+                    }
+                    //console.log("presence message: " + JSON.stringify(m));
+                }
+            });
+            pubnub.subscribe({
+                channels: ['my_channel'],
+                withPresence: true
+            });
         }
 
-        function loadFromSettings(url, mtlurl)
-        {
-          if (Array.isArray(url))
-          {
+        vim3d.scene = scene;
+        vim3d.settings = settings;
+        vim3d.renderer = renderer;
+        vim3d.objects = objects;
+        vim3d.getEventMouseCoordinates = getEventMouseCoordinates;
+        vim3d.getRayCastIntersections = getRayCastIntersections;
+
+        vim3d.publishRallyCall = publishRallyCall;
+    }
+
+    function loadFromSettings(url, mtlurl) {
+        if (Array.isArray(url)) {
             console.time("Loading Array: " + url);
             toLoad = url.length;
             url.forEach((url) => {
-              loadIntoScene(url, mtlurl, () => {
-                toLoad = toLoad - 1;
-                if (toLoad === 0) {
-                  console.timeEnd("Loading Array: " + url)
-                  console.log("\n --- Completed Load --- \n")
-                }
-              })
+                loadIntoScene(url, mtlurl, () => {
+                    toLoad = toLoad - 1;
+                    if (toLoad === 0) {
+                        console.timeEnd("Loading Array: " + url)
+                        console.log("\n --- Completed Load --- \n")
+                    }
+                })
             })
-          }
-          else {
+        }
+        else {
             console.time("Loading: " + url);
             loadIntoScene(url, mtlurl, () => {
-              console.timeEnd("Loading: " + url)
-              console.log("\n --- Completed Load --- \n")
+                console.timeEnd("Loading: " + url)
+                console.log("\n --- Completed Load --- \n")
             });
-          }
+        }
+    }
+
+    // Use this when in full frame mode.
+    function onWindowResize() {
+        var rect = renderer.domElement.getBoundingClientRect();
+        camera.aspect = rect.width / rect.height;
+        camera.updateProjectionMatrix();
+    }
+
+    function getEventMouseCoordinates(event) {
+
+        let clientX = event.clientX;
+        let clientY = event.clientY;
+        if (event.changedTouches && event.changedTouches.length > 0) {
+            clientX = event.changedTouches[0].clientX;
+            clientY = event.changedTouches[0].clientY;
         }
 
-        // Use this when in full frame mode.
-        function onWindowResize() {
-            var rect = renderer.domElement.getBoundingClientRect();
-            camera.aspect = rect.width / rect.height;
-            camera.updateProjectionMatrix();
-        }
+        var rect = renderer.domElement.getBoundingClientRect();
+        return new THREE.Vector2(
+            ((clientX - rect.left) / rect.width) * 2 - 1,
+            - ((clientY - rect.top) / rect.height) * 2 + 1
+        );
+    }
 
-        function getEventMouseCoordinates(event) {
-            
-            let clientX = event.clientX;
-            let clientY = event.clientY;
-            if (event.changedTouches && event.changedTouches.length > 0) {
-                clientX = event.changedTouches[0].clientX;
-                clientY = event.changedTouches[0].clientY;
-            }
+    function onDocumentMouseMove(event) {
+        event.preventDefault();
+        const mouseCoords = getEventMouseCoordinates(event);
+        mouse.x = mouseCoords.x;
+        mouse.y = mouseCoords.y;
+    }
 
-            var rect = renderer.domElement.getBoundingClientRect();
-            return new THREE.Vector2(
-                ((clientX - rect.left) / rect.width) * 2 - 1,
-                - ((clientY - rect.top) / rect.height) * 2 + 1
-            );
-        }
+    function getRayCastIntersections(coords) {
+        rayCaster.setFromCamera(coords, camera);
+        // Only count intersections against visible objects
+        // see: https://threejs.org/docs/#api/en/core/Raycaster.intersectObject
+        return rayCaster.intersectObjects(objects).filter(i => i.object.visible == true);
+    }
 
-        function onDocumentMouseMove(event) {
-            event.preventDefault();
-            const mouseCoords = getEventMouseCoordinates(event);
-            mouse.x = mouseCoords.x;
-            mouse.y = mouseCoords.y;
-        }
-
-        function getRayCastIntersections(coords) {
-            rayCaster.setFromCamera(coords, camera);
-            // Only count intersections against visible objects
-            // see: https://threejs.org/docs/#api/en/core/Raycaster.intersectObject
-            return rayCaster.intersectObjects(objects).filter(i => i.object.visible == true);
-        }
-
-        function resizeCanvas(force) {
-            if (force === void 0) { force = false; }
-            if (!settings.autoResize && !force)
-                return;
-            var canvas = renderer.domElement;
-            var parent = canvas.parentElement;
-            //canvas.width  = parent.clientWidth;
-            //canvas.height = parent.clientHeight;
-            // https://stackoverflow.com/questions/41814539/html-div-height-keeps-growing-on-window-resize-event
-            // you must pass false here or three.js sadly fights the browser
-            //<canvas id="canvas3d" style="position: absolute"></canvas>
-            var rect = parent.getBoundingClientRect();
-            var w = rect.width / window.devicePixelRatio;
-            var h = rect.height / window.devicePixelRatio;
-            renderer.setSize(w, h, false);
-            ssaoPass.setSize(rect.width, rect.height);
-            // Set aspect ratio
-            camera.aspect = canvas.width / canvas.height;
-            camera.updateProjectionMatrix();
-        }
-        function outputStats(obj) {
-            console.log("Object id = " + obj.uuid + " name = " + obj.name);
-            if (obj.isBufferGeometry) {
-                console.log("Is a BufferGeometry");
-                var position = obj.getAttribute('position');
-                if (!position)
-                    throw new Error("Could not find a position attribute");
-                var nVerts = position.count;
-                var nFaces = obj.index ? obj.index.count / 3 : nVerts / 3;
-                console.log("# vertices = " + nVerts);
-                console.log("# faces = " + nFaces);
-                for (var attrName in obj.attributes) {
-                    var attr = obj.getAttribute(attrName);
-                    console.log("has attribute " + attrName + " with a count of " + attr.count);
-                }
-            }
-            else if (obj.isGeometry) {
-                console.log("Is a Geometry");
-                console.log("# vertices = " + obj.vertices.length);
-                console.log("# faces = " + obj.faces.length);
-            }
-            else {
-                console.log("Is neither a Geometry nor a BufferGeometry");
+    function resizeCanvas(force) {
+        if (force === void 0) { force = false; }
+        if (!settings.autoResize && !force)
+            return;
+        var canvas = renderer.domElement;
+        var parent = canvas.parentElement;
+        //canvas.width  = parent.clientWidth;
+        //canvas.height = parent.clientHeight;
+        // https://stackoverflow.com/questions/41814539/html-div-height-keeps-growing-on-window-resize-event
+        // you must pass false here or three.js sadly fights the browser
+        //<canvas id="canvas3d" style="position: absolute"></canvas>
+        var rect = parent.getBoundingClientRect();
+        var w = rect.width / window.devicePixelRatio;
+        var h = rect.height / window.devicePixelRatio;
+        renderer.setSize(w, h, false);
+        ssaoPass.setSize(rect.width, rect.height);
+        // Set aspect ratio
+        camera.aspect = canvas.width / canvas.height;
+        camera.updateProjectionMatrix();
+    }
+    function outputStats(obj) {
+        console.log("Object id = " + obj.uuid + " name = " + obj.name);
+        if (obj.isBufferGeometry) {
+            console.log("Is a BufferGeometry");
+            var position = obj.getAttribute('position');
+            if (!position)
+                throw new Error("Could not find a position attribute");
+            var nVerts = position.count;
+            var nFaces = obj.index ? obj.index.count / 3 : nVerts / 3;
+            console.log("# vertices = " + nVerts);
+            console.log("# faces = " + nFaces);
+            for (var attrName in obj.attributes) {
+                var attr = obj.getAttribute(attrName);
+                console.log("has attribute " + attrName + " with a count of " + attr.count);
             }
         }
-        function loadObject(callback) {
-          return (obj) => {
+        else if (obj.isGeometry) {
+            console.log("Is a Geometry");
+            console.log("# vertices = " + obj.vertices.length);
+            console.log("# faces = " + obj.faces.length);
+        }
+        else {
+            console.log("Is neither a Geometry nor a BufferGeometry");
+        }
+    }
+    function loadObject(callback) {
+        return (obj) => {
             objects.push(obj);
             scene.add(obj);
             // Output some stats
             var g = obj.geometry;
             if (!g) g = obj;
-            outputStats(g);
+            // outputStats(g);
             g.computeBoundsTree();
 
             updateObjects();
             if (callback)
-              callback();
-          }
+                callback();
         }
-        function loadIntoScene(fileName, mtlurl, callback) {
-            console.log("Loading object from " + fileName);
-            var extPos = fileName.lastIndexOf(".");
-            var ext = fileName.slice(extPos + 1).toLowerCase();
-            switch (ext) {
-                case "3ds": {
-                    var loader = new THREE.TDSLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "fbx": {
-                    var loader = new THREE.FBXLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "dae": {
-                    var loader = new THREE.ColladaLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "gltf": {
-                    var loader = new THREE.GLTFLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "gcode": {
-                    var loader = new THREE.GCodeLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "obj": {
-                    var objLoader_1 = new THREE.OBJLoader();
-                    var mtlLoader = new THREE.MTLLoader();
-                    if (mtlurl) {
-                        mtlLoader.load(mtlurl, function (mats) {
-                            mats.preload();
-                            materialsLoaded = true;
-                            objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
-                        }, null, function () {
-                            console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
-                            objLoader_1.load(fileName, loadObject(callback));
-                        });
-                    }
-                    else {
+    }
+    function loadIntoScene(fileName, mtlurl, callback) {
+        // console.log("Loading object from " + fileName);
+        var extPos = fileName.lastIndexOf(".");
+        var ext = fileName.slice(extPos + 1).toLowerCase();
+        switch (ext) {
+            case "3ds": {
+                var loader = new THREE.TDSLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "fbx": {
+                var loader = new THREE.FBXLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "dae": {
+                var loader = new THREE.ColladaLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "gltf": {
+                var loader = new THREE.GLTFLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "gcode": {
+                var loader = new THREE.GCodeLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "obj": {
+                var objLoader_1 = new THREE.OBJLoader();
+                var mtlLoader = new THREE.MTLLoader();
+                if (mtlurl) {
+                    mtlLoader.load(mtlurl, function (mats) {
+                        mats.preload();
+                        materialsLoaded = true;
+                        objLoader_1.setMaterials(mats).load(fileName, loadObject(callback));
+                    }, null, function () {
+                        // console.warn("Failed to load material " + mtlurl + " trying to load obj alone");
                         objLoader_1.load(fileName, loadObject(callback));
-                    }
-                    return;
-                }
-                case "pcd": {
-                    var loader = new THREE.PCDLoader();
-                    loader.load(fileName, loadObject(callback));
-                    return;
-                }
-                case "ply": {
-                    var loader = new THREE.PLYLoader();
-                    loader.load(fileName, function (geometry) {
-                        if (settings.loader.computeVertexNormals)
-                          geometry.computeVertexNormals();
-                        loadObject(callback)(new THREE.Mesh(geometry));
                     });
-                    return;
                 }
-                case "stl": {
-                    var loader = new THREE.STLLoader();
-                    loader.load(fileName, function (geometry) {
-                        if (settings.loader.computeVertexNormals)
-                          geometry.computeVertexNormals();
-                        loadObject(callback)(new THREE.Mesh(geometry));
-                    });
-                    return;
-                }
-                case "json": {
-                  var str = fetchText(fileName);
-                  var jsonData = JSON.parse(str);
-                  // We have been given a list of items to load, lets load 'em
-                  var entities = Object.keys(jsonData);
-                  var entitiesToLoad = entities.length;
-                  entities.forEach((entity, index) => {
+                else {
+                    objLoader_1.load(fileName, loadObject(callback));
+                };
+            }
+            case "pcd": {
+                var loader = new THREE.PCDLoader();
+                loader.load(fileName, loadObject(callback));
+                return;
+            }
+            case "ply": {
+                var loader = new THREE.PLYLoader();
+                loader.load(fileName, function (geometry) {
+                    if (settings.loader.computeVertexNormals)
+                        geometry.computeVertexNormals();
+                    loadObject(callback)(new THREE.Mesh(geometry));
+                });
+                return;
+            }
+            case "stl": {
+                var loader = new THREE.STLLoader();
+                loader.load(fileName, function (geometry) {
+                    if (settings.loader.computeVertexNormals)
+                        geometry.computeVertexNormals();
+                    loadObject(callback)(new THREE.Mesh(geometry));
+                });
+                return;
+            }
+            case "json": {
+                var str = fetchText(fileName);
+                var jsonData = JSON.parse(str);
+                // We have been given a list of items to load, lets load 'em
+                var entities = Object.keys(jsonData);
+                var entitiesToLoad = entities.length;
+                entities.forEach((entity, index) => {
                     var url = jsonData[entity]
                     console.time("Loading: " + entity);
 
                     loadIntoScene(url, mtlurl, () => {
-                      // Thank goodness there is no threading in JS :-)
-                      console.timeEnd("Loading: " + entity);
+                        // Thank goodness there is no threading in JS :-)
+                        console.timeEnd("Loading: " + entity);
 
-                      entitiesToLoad = entitiesToLoad - 1;
-                      console.log(`Completed ${entitiesToLoad - entities.length}, ${entitiesToLoad} remaining`);
-                      if (callback && !entitiesToLoad)
-                        callback();
+                        entitiesToLoad = entitiesToLoad - 1;
+                        console.log(`Completed ${entitiesToLoad - entities.length}, ${entitiesToLoad} remaining`);
+                        if (callback && !entitiesToLoad)
+                            callback();
                     });
-                  })
-                  return;
-                }
-                // HACK: Assume g3d as default case.
-                case "g3d":
-                default:
+                })
+                return;
+            }
+            // HACK: Assume g3d as default case.
+            case "g3d":
+            default:
                 {
                     var loader = new THREE.G3DLoader();
                     loader.load(fileName, function (geometry) {
                         if (settings.loader.computeVertexNormals)
                             geometry.computeVertexNormals();
                         var mesh = new THREE.Mesh(geometry);
-                        var name = fileName.substring(fileName.lastIndexOf('/')+1);
+                        var name = fileName.substring(fileName.lastIndexOf('/') + 1);
                         name = name.slice(0, -4);
                         mesh.name = decodeURIComponent(name);
                         // Add to the display
-                        gui.add(mesh, 'visible').name( mesh.name || ( 'Mesh' + objects.length ) );
+                        gui.add(mesh, 'visible').name(mesh.name || ('Mesh' + objects.length));
                         settings.object.categories[name] = true;
                         loadObject(callback)(mesh);
                     }, null, console.error);
                     return;
                 }
 
-                // throw new Error("Unrecognized file type extension '" + ext + "' for file " + fileName);
-            }
+            // throw new Error("Unrecognized file type extension '" + ext + "' for file " + fileName);
         }
-        // Helper functions
-        function toVec(obj) {
-            return new THREE.Vector3(obj.x, obj.y, obj.z);
-        }
-        function scalarToVec(x) {
-            return new THREE.Vector3(x, x, x);
-        }
-        function addShadowedLight(scene) {
-            var dirLight = new THREE.DirectionalLight();
-            scene.add(dirLight);
-            /*
-            dirLight.castShadow = true;
-            var d = 10;
-            dirLight.shadow.camera.left = -d;
-            dirLight.shadow.camera.right = d;
-            dirLight.shadow.camera.top = d;
-            dirLight.shadow.camera.bottom = -d;
-            dirLight.shadow.camera.near = 0.01;
-            dirLight.shadow.camera.far = 1000;
-            //dirLight.shadow.mapSize.width = 1024;
-            //dirLight.shadow.mapSize.height = 1024;
-            dirLight.shadow.mapSize.width = 4096;
-            dirLight.shadow.mapSize.height = 4096;
-            dirLight.shadow.bias = -0.001;
-            */
-            return dirLight;
-        }
-        // https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API/File_drag_and_drop
-        function dragOverHandler(ev) {
-            console.log('File(s) in drop zone');
-            // Prevent default behavior (Prevent file from being opened)
-            ev.preventDefault();
-        }
-        function droppedFile(file) {
-            // TODO: deal with other data ...
-            var fileName = file.name;
-            loadIntoScene("../data/" + fileName, null);
-        }
-        function dropHandler(ev) {
-            console.log('File(s) dropped');
-            // Prevent default behavior (Prevent file from being opened)
-            ev.preventDefault();
-            if (ev.dataTransfer.items) {
-                // Use DataTransferItemList interface to access the file(s)
-                for (var i = 0; i < ev.dataTransfer.items.length; i++) {
-                    // If dropped items aren't files, reject them
-                    if (ev.dataTransfer.items[i].kind === 'file') {
-                        var file = ev.dataTransfer.items[i].getAsFile();
-                        droppedFile(file);
-                    }
+    }
+
+    function addShadowedLight(scene) {
+        var dirLight = new THREE.DirectionalLight();
+        scene.add(dirLight);
+        /*
+        dirLight.castShadow = true;
+        var d = 10;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.camera.near = 0.01;
+        dirLight.shadow.camera.far = 1000;
+        //dirLight.shadow.mapSize.width = 1024;
+        //dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.mapSize.width = 4096;
+        dirLight.shadow.mapSize.height = 4096;
+        dirLight.shadow.bias = -0.001;
+        */
+        return dirLight;
+    }
+    // https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API/File_drag_and_drop
+    function dragOverHandler(ev) {
+        console.log('File(s) in drop zone');
+        // Prevent default behavior (Prevent file from being opened)
+        ev.preventDefault();
+    }
+    function droppedFile(file) {
+        // TODO: deal with other data ...
+        var fileName = file.name;
+        loadIntoScene("../data/" + fileName, null);
+    }
+    function dropHandler(ev) {
+        console.log('File(s) dropped');
+        // Prevent default behavior (Prevent file from being opened)
+        ev.preventDefault();
+        if (ev.dataTransfer.items) {
+            // Use DataTransferItemList interface to access the file(s)
+            for (var i = 0; i < ev.dataTransfer.items.length; i++) {
+                // If dropped items aren't files, reject them
+                if (ev.dataTransfer.items[i].kind === 'file') {
+                    var file = ev.dataTransfer.items[i].getAsFile();
+                    droppedFile(file);
                 }
             }
-            else {
-                // Use DataTransfer interface to access the file(s)
-                for (var i = 0; i < ev.dataTransfer.files.length; i++) {
-                    droppedFile(ev.dataTransfer.files[i]);
-                }
-            }
-            // Pass event to removeDragData for cleanup
-            removeDragData(ev);
         }
-        function removeDragData(ev) {
-            if (ev.dataTransfer.items) {
-                // Use DataTransferItemList interface to remove the drag data
-                ev.dataTransfer.items.clear();
-            }
-            else {
-                // Use DataTransfer interface to remove the drag data
-                ev.dataTransfer.clearData();
+        else {
+            // Use DataTransfer interface to access the file(s)
+            for (var i = 0; i < ev.dataTransfer.files.length; i++) {
+                droppedFile(ev.dataTransfer.files[i]);
             }
         }
-        // Calls render, and asks the framework to prepare the next frame
-        function animate() {
-            requestAnimationFrame(animate);
-            render();
-            if (stats)
-                stats.update();
+        // Pass event to removeDragData for cleanup
+        removeDragData(ev);
+    }
+    function removeDragData(ev) {
+        if (ev.dataTransfer.items) {
+            // Use DataTransferItemList interface to remove the drag data
+            ev.dataTransfer.items.clear();
+        }
+        else {
+            // Use DataTransfer interface to remove the drag data
+            ev.dataTransfer.clearData();
+        }
+    }
+    // Calls render, and asks the framework to prepare the next frame
+    function animate() {
+        requestAnimationFrame(animate);
+        render();
+        if (stats)
+            stats.update();
+    }
+
+    function updateCursor() {
+        // If not showing cursor skip ray cast altogether. But make sure cursor is really not visible.
+        if (!settings.cursor.show) {
+            cursor.visible = false;
+            return;
         }
 
-        function updateCursor() {
-            // If not showing cursor skip ray cast altogether. But make sure cursor is really not visible.
-            if (!settings.cursor.show) {
-                cursor.visible = false;
-                return;
-            }
-
-            intersections = getRayCastIntersections(mouse);
-            if (intersections.length > 0)
-            {
-                const { point } = intersections[0];
-                cursor.visible = settings.cursor.show;
-                cursor.position.set(point.x, point.y, point.z);
-            }
-            else
-            {
-                cursor.visible = false;
-            }
+        intersections = getRayCastIntersections(mouse);
+        if (intersections.length > 0) {
+            const { point } = intersections[0];
+            cursor.visible = settings.cursor.show;
+            cursor.position.set(point.x, point.y, point.z);
         }
+        else {
+            cursor.visible = false;
+        }
+    }
 
-        // Updates scene objects, and draws the scene
-        // TODO: update the camera
-        function render() {
-            resizeCanvas();
-            updateObjects();
-            updateCamera();
+    // Updates scene objects, and draws the scene
+    // TODO: update the camera
+    function render() {
+        resizeCanvas();
+        updateObjects();
+        updateCamera();
+        updateSSAO();
+        if (!isRallying)
+        {
             updateCameraControls();
-            updateSSAO();
             controls.update();
-            updateCursor();
-            throttledPublishMessage();
-
-            if (settings.SSAO.enable)
-            {
-              composer.render();
-            }
-            else {
-              renderer.render(scene, camera);
-            }
         }
-    };
 
-vim3d.isolate = function(name) {
+        updateCursor();
+        throttledPublishCameraXfo();
+
+        if (settings.SSAO.enable) {
+            composer.render();
+        }
+        else {
+            renderer.render(scene, camera);
+        }
+    }
+};
+
+vim3d.isolate = function (name) {
     for (var obj of vim3d.objects)
         if (obj.name == name)
             obj.visible = true;
@@ -1299,18 +1372,64 @@ vim3d.isolate = function(name) {
             obj.visible = false;
 }
 
-vim3d.setVis = function(name, vis) {
+vim3d.setVis = function (name, vis) {
     for (var obj of vim3d.objects)
         if (obj.name == name)
             obj.visible = vis;
 }
 
-vim3d.setVisAll = function(vis) {
+vim3d.setVisAll = function (vis) {
     for (var obj of vim3d.objects)
         obj.visible = vis;
 }
 
-//# sourceMappingURL=index.js.map
+// Helper functions
+
+function getMyUuid() {
+    // Lets try and keep a constant UUID (for billing reasons, and
+    // also when someone re-connects, they can resume their previous avatar)
+    var uuid = localStorage.getItem("uuid");
+    if (!uuid) {
+        uuid = PubNub.generateUUID();
+        localStorage.setItem("uuid", uuid);
+    }
+    return uuid;
+}
+
+function toVec(obj) {
+    return new THREE.Vector3(obj.x, obj.y, obj.z);
+}
+
+function setVector(dest, src) {
+    dest.set(src.x, src.y, src.z);
+}
+
+function setQuaternion(dest, src) {
+    dest.set(src.x, src.y, src.z, src.w);
+}
+
+function stripVector(v) {
+    return {
+        x: v.x,
+        y: v.y,
+        z: v.z,
+    }
+}
+
+function stripQuaternion(q) {
+    var sq = stripVector(q)
+    sq.w = q.w
+    return sq;
+}
+
+;function onDocumentKeyDown(event) {
+    var keyCode = event.which;
+    if (keyCode === 82) // "R" triggers a rally call.
+      vim3d.publishRallyCall();
+};
+
+document.addEventListener("keydown", onDocumentKeyDown, false);
+
 ;/**
  * dat-gui JavaScript Controller Library
  * http://code.google.com/p/dat-gui
@@ -76501,7 +76620,7 @@ THREE.G3DLoader.prototype =
 
         // break the first one up into names
         var joinedNames = new TextDecoder("utf-8").decode(buffers[0]);
-        names = joinedNames.split('\0');
+        var names = joinedNames.split('\0');
 
         if (names.length !== buffers.length - 1)
             throw new Error("Expected number of names to be equal to the number of buffers - 1");
@@ -76627,6 +76746,12 @@ THREE.G3DLoader.prototype =
         var colors = this.findAttribute( g3d, null, "color", "0", "int8", "4" );
         //console.log(position ? "Found color data" : "No color data found");
 
+        // Find the face ids.
+        var faceGroupIdAttr = this.findAttribute(g3d, "face", "groupid", "0", "int32", "1");
+        if (!faceGroupIdAttr) {
+            throw new Error("No face group ids found.");
+        }
+
         if (!position) throw new Error("Cannot create geometry without a valid vertex attribute");
         if (!indices) throw new Error("Cannot create geometry without a valid index attribute");
 
@@ -76637,8 +76762,12 @@ THREE.G3DLoader.prototype =
         this.addAttributeToGeometry( geometry, 'position', position );
 
         // Optionally add a vertex color data buffer if present
-        if (colors)
+        if (colors) {
             this.addAttributeToGeometry( geometry, 'color', colors );
+        }
+
+        // Add the face group ids.
+        this.addAttributeToGeometry(geometry, 'facegroupids', faceGroupIdAttr);
 
         // Add the index buffer (which has to be cast to a Uint32BufferAttribute)
         var typedArray = this.attributeToTypedArray( indices );

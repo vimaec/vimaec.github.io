@@ -10,6 +10,8 @@
     <script src="https://unpkg.com/react-dom@16/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.21.7.min.js"></script>
+    <script src="https://code.createjs.com/1.0.0/tweenjs.min.js"></script>
+    
     <script src="./dist/vim-3d-viewer.js"></script>
 
 </head>
@@ -27,7 +29,7 @@
                 url: [
                     './models/category_test/index.json'
                 ],
-                pubnub: false,
+                pubnub: true,
                 object: {
                     scale: 0.1,
                     rotation: { x: 270 },
