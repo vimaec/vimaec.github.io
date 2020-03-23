@@ -725,7 +725,7 @@ vim3d.view = function (options) {
     var isRallying = false;
     var rotationMatrix = new THREE.Matrix4();
     var upVector = new THREE.Vector3(0, 1, 0);
-    var targetPosition = new THREE.Vector3();
+    var eyePoint = new THREE.Vector3();
     var cameraForward = new THREE.Vector3();
     var targetQuat = new THREE.Quaternion();
 
@@ -736,25 +736,27 @@ vim3d.view = function (options) {
 
         // Disable user input, and set it the orbit target to be the highlighted object
         isRallying = true;
-        controls.target.copy(rallyPoint);
+        setVector(eyePoint, rallyPoint);
+        setVector(cameraForward, viewDirection)
+        controls.target.copy(eyePoint);
+        controls.target.addScaledVector(cameraForward, viewDistance || 10);
 
         // Our offset moves us backwards from the rallyPoint but still facing towards it
-        setVector(targetPosition, rallyPoint);
-        var zOffset = camera.getWorldDirection(cameraForward)
-            .multiplyScalar(-viewDistance);
+        // var zOffset = camera.getWorldDirection(cameraForward)
+        //     .multiplyScalar(-viewDistance);
         // If our offset is not in the same direction as the viewDirection, then 
         // we negate the offset X/Z values to flip us around
         // This is a very cheap way to put everyone in the same hemipshere
         // (note: this is GT because our offset is the inverse of the direction we actually face)
-        if (zOffset.dot(viewDirection) > 0) {
-            zOffset.x *= -1;
-            zOffset.z *= -1;
-        }
-        targetPosition.add(zOffset);
-        vectorTween(camera.position, targetPosition);
+        // if (zOffset.dot(viewDirection) > 0) {
+        //     zOffset.x *= -1;
+        //     zOffset.z *= -1;
+        // }
+        //targetPosition.add(zOffset);
+        vectorTween(camera.position, eyePoint);
 
         // Now rotate to look at rally point.  This theoretically should be a no-op
-        rotationMatrix.lookAt(targetPosition, rallyPoint, upVector);
+        rotationMatrix.lookAt(eyePoint, controls.target, upVector);
         targetQuat.setFromRotationMatrix(rotationMatrix);
         quaternionTween(camera.quaternion, targetQuat);
     }
@@ -814,22 +816,21 @@ vim3d.view = function (options) {
         if (intersections.length > 0) {
             const { point } = intersections[0]
 
-            // The hitpoint is what we are looking at
-            rallyPoint = point.clone();
+        //     // The hitpoint is what we are looking at
+        //     rallyPoint = point.clone();
 
-            // Indicate the direction/distance we are looking towards the rally point
+        //     // Indicate the direction/distance we are looking towards the rally point
             const cameraToPoint = point.clone().sub(camera.position);
             viewDistance = cameraToPoint.length();
-            viewDirection = cameraToPoint.multiplyScalar(1.0 / viewDistance);
-            viewDistance = viewDistance * 0.8;
+        //     viewDirection = cameraToPoint.multiplyScalar(1.0 / viewDistance);
+        //     viewDistance = viewDistance * 0.8;
         }
-        else {
+        //else {
             rallyPoint = camera.position;
             viewDirection = camera.getWorldDirection(cameraForward);
             // We want the users to appear in front of us, looking at us
-            viewDirection.multiplyScalar(-1);
-        }
-        console.log("HitPoint: " + rallyPoint);
+            //viewDirection.multiplyScalar(-1);
+        //}
         publish({
             rallyCall: {
                 rallyPoint,
