@@ -16,7 +16,9 @@ const srcFiles = [
     'node_modules/dat.gui/build/dat.gui.js',
     'node_modules/three/build/three.js',
     'node_modules/three/examples/js/libs/stats.min.js',
-    'node_modules/three/examples/js/controls/OrbitControls.js', 
+    // NOTE: these controls eat up the touchmove 'node_modules/three/examples/js/controls/OrbitControls.js', 
+    // VVV Replaced with js/CustomOrbitControls (in which the touchmove has been modified) VVV
+    'js/CustomOrbitControls.js',
     'node_modules/three/examples/js/controls/TrackballControls.js', 
 
     // Renderer effects

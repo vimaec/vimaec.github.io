@@ -3,38 +3,48 @@ body
     padding: 0;
     margin: 0;
     --common-text-shadow: 1px 1px 1px #00000026;
+    --nav-width: 150px;
     --dat-gui-container-size: 250px;
     --button-size: 100px;
 }
 
-#logo
+.scrollable-text
 {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    margin: 1rem;
-    background: transparent url('./img/VIM logo FULL COLOR landscape@2x.png') 0% 0% no-repeat;
-    background-size: cover;
-    width: 128px;
-    height: 48px;
+    overflow: auto;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.custom-scrollbar::-webkit-scrollbar
+{
+    width: 5px;
+    height: 5px;
+    background: #1a1a1a3d;
+}
+.custom-scrollbar::-webkit-scrollbar-corner
+{
+    height: 0;
+    display: none;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb
+{
+    border-radius: 5px;
+    background: #676767;
 }
 
 .layout
 {
-    position:fixed;
-    top:0;
-    left:0;
     height: 100%;
     width: 100%;
     display: grid;
-    grid-template-columns: auto var(--dat-gui-container-size);
+    grid-template-columns: calc(100% - var(--dat-gui-container-size)) var(--dat-gui-container-size);
     grid-template-rows: 100%;
     grid-template-areas:
-        "content side";
+        "content gui";
     pointer-events: painted;
 }
 
-.layout--span-all
+.layout--canvas
 {
     grid-column: content / span 2;
     grid-row-start: 1;
@@ -43,35 +53,97 @@ body
     height: 100%;
 }
 
-.layout--content
+.layout--gui
 {
-    grid-area: content;
-    width: 100%;
-    height: 100%;
-}
-
-.layout--side
-{
-    grid-area: side;
+    grid-area: gui;
     max-height: 100%;
     z-index: 1000;
+}
+
+/* @media only screen and (max-device-width: 480px) { */
+/* Mobile layout */
+@media (max-width: 480px) {
+    .layout {
+        grid-template-columns: 100% 0px;
+    }
+
+    .layout--gui
+    {
+        display: none;
+    }
 }
 
 .overlay--root
 {
     display: grid;
+    grid-template-columns: var(--nav-width) auto;
+    grid-template-rows: 100%;
+    grid-template-areas:
+        "nav bim";
     height: 100%;
+    width: 100%;
+}
+
+.overlay--nav
+{
+    grid-area: nav;
+    width: 100%;
+    height: 100%;
+    background: transparent linear-gradient(169deg, #0590CC 0%, #7EBF50 74%, #FFB700 100%) 0% 0% no-repeat padding-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    z-index: 10000;
+}
+
+#logo
+{
+    background: transparent url('./img/VIM logo WHITE@2x.png') 0% 0% no-repeat;
+    background-size: cover;
+    width: 56.3px;
+    height: 64px;
+    margin: 32 47;
+}
+
+@media (max-width: 480px) {
+    .overlay--root {
+        grid-template-columns: 100%;
+        grid-template-rows: 60px calc(100% - 60px);
+        grid-template-areas:
+            "nav"
+            "bim";
+    }
+
+    .overlay--nav
+    {
+        background: transparent linear-gradient(163deg, #0590CC 0%, #7EBF50 100%) 0% 0% no-repeat padding-box;
+        flex-direction: row;
+        justify-content: flex-start;
+    }
+
+    #logo
+    {
+        background: transparent url('img/VIM logo WHITE landscape.png') 0% 0% no-repeat padding-box;
+        background-size: cover;
+        width: 63.91px;
+        height: 24px;
+        margin: 16px 25px 20px 25px;
+    }
 }
 
 .bdc--pane /* bdc = bim-data-container */
 {
-    position: fixed;
-    top: 48;
-    left: 0;
+    grid-area: bim;
+    margin: 1rem;
+    background-color: white;
+    justify-self: flex-start;
+    align-self: auto;
     font-family: 'Roboto', sans-serif;
     display: grid;
-    margin: 1rem;
-    grid-template-columns: 440px;
+    --pane-width: 365px;
+    --pane-height: 438px;
+    grid-template-columns: var(--pane-width);
     grid-template-rows: auto auto;
     grid-template-areas:
     "header"
@@ -79,6 +151,17 @@ body
     box-shadow: 5px 5px 14px #00000026;
     border-radius: 8px 8px 0px 0px;
     z-index: 10000;
+    width: var(--pane-width);
+    height: var(--pane-height);
+}
+@media (max-width: 480px)
+{
+    .bdc--pane
+    {
+        justify-self: center;
+        align-self: center;
+        margin: auto 0px 0px 0px;
+    }
 }
 
 .bdc--header
@@ -86,16 +169,18 @@ body
     grid-area: header;
     color: white;
     border-radius: 8px 8px 0px 0px;
-    background: transparent linear-gradient(170deg, #0590CC 0%, #8DC95B 100%) 0% 0% no-repeat padding-box;
+    background: #3F433D 0% 0% no-repeat padding-box;
     padding: 25px;
     display: grid;
-    grid-template-columns: 100px 100px 100px 1fr;
+    grid-template-columns: auto auto 25px;
+    /* grid-template-rows: 28px 17px 11px 21px; */
     grid-template-rows: auto 17px auto auto;
     grid-template-areas:
-    "title        title       title       title"
-    ".            .           .           ."
-    "label-family label-type  label-count ."
-    "value-family value-type  value-count .";
+    "title        title       close"
+    ".            .           ."
+    "label-family label-type  ."
+    "value-family value-type  .";
+    grid-column-gap: 10px;
     align-items: baseline;
 }
 
@@ -106,11 +191,14 @@ body
     font-size: 28px;
     letter-spacing: -0.48px;
     text-shadow: var(--common-text-shadow);
+    width: 100%;
+    height: 100%;
+    /* text-overflow: ellipsis; */
 }
 
 .bdc--close
 {
-    grid-area: title;
+    grid-area: close;
     justify-self: right;
     font-size: 1.5rem;
     cursor: pointer;
@@ -143,11 +231,11 @@ body
 .bdc--body
 {
     grid-area: body;
-    background: #FAFAFA 0% 0% no-repeat padding-box;
+    background: #ffffff 0% 0% no-repeat padding-box;
     opacity: 1;
-    backdrop-filter: blur(25px); /* only works in safari apparently */
-    -webkit-backdrop-filter: blur(25px);
-    padding: 25px;
+    margin: 10px;
+    padding: 15px;
+    overflow: auto;
 }
 
 .bdc--body__subtitle
@@ -175,10 +263,8 @@ body
 
 .bdp--container
 {
-    justify-self: end;
-    align-self: end;
-    bottom: 0px;
-    right: 0px;
+    justify-self: flex-end;
+    align-self: flex-end;
     margin: 1rem;
     z-index: 10000;
 }
@@ -199,4 +285,21 @@ body
     font-weight: normal;
     cursor: pointer;
     text-shadow: var(--common-text-shadow);
+}
+
+.bdp--linear-progress-container
+{
+    grid-area: bim;
+    width: 100%;
+    height: 10px;
+}
+
+.bdp--progress
+{
+    background-color: transparent !important;
+}
+.bdp--progress > .MuiLinearProgress-barColorPrimary
+{
+    /* background-color: #0e8dc3 !important; */
+    background-color: #01afe9 !important;
 }
