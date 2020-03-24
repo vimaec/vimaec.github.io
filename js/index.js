@@ -1402,11 +1402,22 @@ vim3d.setVisAll = function (vis) {
 // Helper functions
 
 const colors = [
-    "#3efcaf",
-    "#48bf3c",
-    "#71e6d7",
-    "#b4fa82",
-    "#cbc16a"
+    "#980000",
+    "#FF0000",
+    "#D5009B",
+    "#FF77FA",
+    "#9D00E2",
+    "#9289FF",
+    "#4700CE",
+    "#0089FF",
+    "#0FF6FF",
+    "#38FFBA",
+    "#51E21B",
+    "#2CA300",
+    "#F7FF26",
+    "#FFB700",
+    "#F48D00",
+    "#7C4300",
 ]
 function uuidToColor(uuid) {
     // we want to get an index for the colors array from our UUID,
