@@ -346,6 +346,8 @@ class Overlay extends React.Component {
         }
 
         this.addLongPressListener();
+
+        document.dispatchEvent(new Event('overlay-loaded'));
     }
 
     componentWillUnmount() {

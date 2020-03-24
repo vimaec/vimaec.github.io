@@ -24,8 +24,8 @@
     </div>
     <script src="./js/overlay.jsx" type="text/babel"></script>
     <script>
-        vim3d.view(
-            {
+        document.addEventListener('overlay-loaded', () => {
+            vim3d.view({
                 canvasId: 'vimcanvas',
                 url: [
                     './models/category_test/index.json'
@@ -33,7 +33,7 @@
                     // './models/category_test/Walls.g3d',
                     // './models/category_test/Doors.g3d', 
                 ],
-                pubnub: true,
+                pubnub: false,
                 object: {
                     scale: 0.1,
                     rotation: { x: 270 },
@@ -72,6 +72,7 @@
                     color: { r: 0xff, g: 0xff, b: 0xff }
                 },
             });
+        });
     </script>
 </body>
 
