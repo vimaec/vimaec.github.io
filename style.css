@@ -117,7 +117,10 @@ body
 
     .overlay--nav
     {
-        background: transparent linear-gradient(163deg, #0590CC 0%, #7EBF50 100%) 0% 0% no-repeat padding-box;
+        background-image:
+            url('img/hex_pattern.png'),
+            linear-gradient(163deg, #0590CC 0%, #7EBF50 100%);
+        background-blend-mode: normal;
         flex-direction: row;
         justify-content: flex-start;
     }
