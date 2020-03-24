@@ -397,6 +397,7 @@ vim3d.view = function (options) {
     var throttledPublishCameraXfo;
 
     // Variables
+    var materials = {};
     var avatars = {};
     var cursors = {};
     var rayCaster, intersections, cursor;
@@ -461,8 +462,6 @@ vim3d.view = function (options) {
         },
         cursor: {
             show: true,
-            localColor: { r: 0x00, g: 0x00, b: 0x88 },
-            remoteColor: { r: 0x00, g: 0x88, b: 0x00 },
             scale: 0.2,
         },
         light1: {
@@ -476,6 +475,9 @@ vim3d.view = function (options) {
             height: 1,
             depth: 0.2,
             color: { r: 0x00, g: 0x55, b: 0xFF },
+            minOpacity: 0.1,
+            maxOpacity: 0.6,
+            fadeDistance: 5,
         },
         object: {
             scale: 0.01,
@@ -484,14 +486,6 @@ vim3d.view = function (options) {
             categories: {
 
             },
-            material: {
-                color: { r: 0x00, g: 0x55, b: 0xFF },
-                emissive: { r: 0x00, g: 0x00, b: 0x00 },
-                specular: { r: 0x11, g: 0x11, b: 0x11 },
-                flatShading: true,
-                shininess: 30,
-                wireframe: false,
-            }
         }
     };
 
@@ -594,15 +588,6 @@ vim3d.view = function (options) {
         plane.visible = settings.plane.show;
         updateMaterial(plane.material, settings.plane.material);
         plane.position.copy(toVec(settings.plane.position));
-        // light1.position.copy(toVec(settings.light1.position));
-        // light1.color = toColor(settings.light1.color);
-        // light1.intensity = settings.light1.intensity;
-        // light2.position.copy(toVec(settings.light2.position));
-        // light2.color = toColor(settings.light2.color);
-        // light2.intensity = settings.light2.intensity;
-        // sunlight.skyColor = toColor(settings.sunlight.skyColor);
-        //sunlight.groundColor = toColor(settings.sunlight.groundColor);
-        //sunlight.intensity = settings.sunlight.intensity;
     }
     function updateObjects() {
         for (var child of objects) {
@@ -617,14 +602,31 @@ vim3d.view = function (options) {
             child.quaternion.setFromEuler(toEuler(settings.object.rotation));
         }
         cursor.visible = settings.cursor.show;
-        cursor.material.color = toColor(settings.cursor.localColor);
         cursor.scale.setScalar(settings.cursor.scale);
         for (var k in cursors) {
             var c = cursors[k];
-            c.material.color = toColor(settings.cursor.remoteColor);
             c.scale.setScalar(settings.cursor.scale);
         }
     }
+
+    function updateAvatarTransparency() {
+        const { fadeDistance, minOpacity, maxOpacity } = settings.avatar;
+        const fadeBeginSq = fadeDistance * fadeDistance;
+        for (const uuid in avatars) {
+            var avatar = avatars[uuid];
+            // How far from us?
+            var avatarDistanceSq = avatar.position.distanceToSquared(camera.position);
+            if (avatarDistanceSq < fadeBeginSq)
+            {
+                var fade = minOpacity + (maxOpacity - minOpacity) * avatarDistanceSq / fadeBeginSq;
+                materials[uuid].opacity = fade;
+            }
+            else{
+                materials[uuid].opacity = maxOpacity;
+            }
+        }
+    }
+
     function objectToPropDesc(obj, pdm) {
         // TODO: look for common patterns (colors, positions, angles) and process these specially.
         for (var k in obj) {
@@ -669,17 +671,19 @@ vim3d.view = function (options) {
         downloadLink.href = window.URL.createObjectURL(data);
         downloadLink.click();
     }
+
     function loadAvatar(uuid) {
         if (uuid == myUUID)
             return;
+        
         if (!(uuid in avatars)) {
             console.log("Creating avatar");
-            var mesh = createAvatar();
+            var mesh = createAvatar(uuid);
             avatars[uuid] = mesh;
         }
         if (!(uuid in cursors)) {
             console.log("Creating avatar cursor");
-            var mesh = createCursorMesh(false);
+            var mesh = createCursorMesh(uuid);
             cursors[uuid] = mesh;
         }
     }
@@ -852,18 +856,27 @@ vim3d.view = function (options) {
         }).catch(error => console.log(error));
     }
 
-    function createCursorMesh(localOrRemote) {
-        var color = localOrRemote ? settings.cursor.localColor : settings.cursor.remoteColor;
-        var c = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(0.5), new THREE.MeshPhongMaterial({ color: color }));
+
+
+    function getMaterial(uuid) {
+        var mtl = materials[uuid]
+        if (!mtl) {
+            materials[uuid] = mtl = new THREE.MeshPhongMaterial({ color: uuidToColor(uuid), opacity: 0.6, transparent: true })
+        }
+        return mtl
+    }
+    function createCursorMesh(uuid) {
+        var material = getMaterial(uuid);
+        var c = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(0.5), material);
         c.scale.setScalar(settings.cursor.scalar);
         c.visible = settings.cursor.show;
         scene.add(c);
         return c;
     }
 
-    function createAvatar() {
+    function createAvatar(uuid) {
+        var material = getMaterial(uuid);
         var geometry = new THREE.BoxBufferGeometry(settings.avatar.width, settings.avatar.height, settings.avatar.depth);
-        var material = new THREE.MeshPhongMaterial({ color: toColor(settings.avatar.color) });
         var mesh = new THREE.Mesh(geometry, material)
         scene.add(mesh);
         return mesh;
@@ -872,10 +885,12 @@ vim3d.view = function (options) {
     // Scene initialization
     function init() {
         // publishes PubNub message every X msec
-        throttledPublishCameraXfo = throttle(publishCameraXfo, 200);
+        throttledPublishCameraXfo = throttle(publishCameraXfo, 100);
 
         // Initialize the settings
         settings = (new DeepMerge()).deepMerge(defaultOptions, options, undefined);
+        myUUID = getMyUuid();
+            
         // If a canvas is given, we will draw in it.
         var canvas = document.getElementById(settings.canvasId);
         if (!canvas) {
@@ -922,7 +937,7 @@ vim3d.view = function (options) {
         plane.receiveShadow = true;
         scene.add(plane);
         // Cursor
-        cursor = createCursorMesh(true);
+        cursor = createCursorMesh(myUUID);
         // Lights
         sunlight = new THREE.HemisphereLight();
         scene.add(sunlight);
@@ -978,10 +993,9 @@ vim3d.view = function (options) {
 
         // Set-up pubnub
         if (settings.pubnub) {
-            myUUID = getMyUuid();
             pubnub = new PubNub({
-                publishKey: "pub-c-39d36562-7867-4ddc-b7e2-9eaaa344f727",
-                subscribeKey: "sub-c-e742a396-5e51-11ea-b226-5aef0d0da10f",
+                publishKey: "pub-c-21488fa4-ced8-47af-af29-e12e448d13fe",
+                subscribeKey: "sub-c-97dcb2d0-6d22-11ea-94ed-e20534093ea4",
                 uuid: myUUID
             });
             pubnub.addListener({
@@ -1345,6 +1359,7 @@ vim3d.view = function (options) {
     function render() {
         resizeCanvas();
         updateObjects();
+        updateAvatarTransparency();
         updateCamera();
         updateSSAO();
         if (!isRallying)
@@ -1385,6 +1400,21 @@ vim3d.setVisAll = function (vis) {
 }
 
 // Helper functions
+
+const colors = [
+    "#3efcaf",
+    "#48bf3c",
+    "#71e6d7",
+    "#b4fa82",
+    "#cbc16a"
+]
+function uuidToColor(uuid) {
+    // we want to get an index for the colors array from our UUID,
+    const hexVal = uuid.split('-')[0]
+    const uuidPortion = parseInt(hexVal, 16)
+    const uuidColorIndex = uuidPortion % colors.length;
+    return colors[uuidColorIndex];
+}
 
 function getMyUuid() {
     // Lets try and keep a constant UUID (for billing reasons, and
