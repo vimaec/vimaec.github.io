@@ -183,6 +183,22 @@ function LongPressIndicator() {
     );
 }
 
+class PoiNavigator extends React.Component {
+    constructor(props) {
+        super(props);
+    }
+
+    render() {
+        return (
+            <div className="poi">
+                <i className="fas fa-chevron-left poi--btn"></i>
+                <div>Placeholder</div>
+                <i className="fas fa-chevron-right poi--btn"></i>
+            </div>
+        )
+    }
+}
+
 class Overlay extends React.Component {
 
     constructor(props) {
@@ -365,6 +381,7 @@ class Overlay extends React.Component {
                     ? <LongPressIndicator />
                     : null
                 }
+                <PoiNavigator/>
             </div>
         );
     }
