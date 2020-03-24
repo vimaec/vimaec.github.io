@@ -251,11 +251,9 @@ class Overlay extends React.Component {
         if (evt.touches && evt.touches.length !== 1) {
             return;
         }
-        console.log(evt);
         evt.preventDefault();
 
         const startClientLocation = this.getCursorClientLocation(evt);
-        console.log("startClientLocation", startClientLocation);
         if (startClientLocation) {
             this.setState((state) => ({
                 longPressInitiated: true,
