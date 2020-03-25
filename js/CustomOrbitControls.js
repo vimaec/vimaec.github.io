@@ -75,7 +75,7 @@ THREE.OrbitControls = function (object, domElement) {
     this.enableKeys = true;
 
     // The four arrow keys
-    this.keys = { LEFT: 65, RIGHT: 68, UP: 81, DOWN: 69, IN: 87, OUT: 83 };
+    this.keys = { LEFT: 65, RIGHT: 68, UP: 81, BOTTOM: 69, IN: 83, OUT: 87 };
 
     // Mouse buttons
     this.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
@@ -333,6 +333,20 @@ THREE.OrbitControls = function (object, domElement) {
 
     }
 
+    var panForward = function() {
+
+        var v = new THREE.Vector3();
+
+        return function panForward(distance, objectMatrix) {
+
+            v.setFromMatrixColumn(objectMatrix, 2); // get Y column of objectMatrix
+            v.multiplyScalar(- distance * 0.25); // 0.25 fudge factor
+
+            panOffset.add(v);
+
+        };
+    }();
+
     var panLeft = function () {
 
         var v = new THREE.Vector3();
@@ -418,7 +432,7 @@ THREE.OrbitControls = function (object, domElement) {
 
         if (scope.object.isPerspectiveCamera) {
 
-            scale /= dollyScale;
+            panForward(-dollyScale, scope.object.matrix);
 
         } else if (scope.object.isOrthographicCamera) {
 
@@ -439,7 +453,7 @@ THREE.OrbitControls = function (object, domElement) {
 
         if (scope.object.isPerspectiveCamera) {
 
-            scale *= dollyScale;
+            panForward(dollyScale, scope.object.matrix);
 
         } else if (scope.object.isOrthographicCamera) {
 
@@ -540,13 +554,15 @@ THREE.OrbitControls = function (object, domElement) {
 
     function handleMouseWheel(event) {
 
+        const mouseWheelMultiplier = 2;
+
         if (event.deltaY < 0) {
 
-            dollyOut(getZoomScale());
+            dollyOut(getZoomScale() * mouseWheelMultiplier);
 
         } else if (event.deltaY > 0) {
 
-            dollyIn(getZoomScale());
+            dollyIn(getZoomScale() * mouseWheelMultiplier);
 
         }
 
@@ -726,7 +742,17 @@ THREE.OrbitControls = function (object, domElement) {
 
         dollyDelta.set(0, Math.pow(dollyEnd.y / dollyStart.y, scope.zoomSpeed));
 
-        dollyIn(dollyDelta.y);
+        if (Math.abs(dollyDelta.y - 1) > 0.01) // only dolly if the movement exceeds an epsilon value.
+        {
+            if (dollyDelta.y < 1) {
+
+                dollyIn(dollyDelta.y);
+    
+            } else {
+    
+                dollyOut(dollyDelta.y);
+            }
+        }
 
         dollyStart.copy(dollyEnd);
 

@@ -566,7 +566,6 @@ vim3d.view = function (options) {
         controls.rotateSpeed = settings.camera.controls.rotateSpeed;
         controls.enablePan = settings.camera.controls.enablePan;
         controls.panSpeed = settings.camera.controls.panSpeed;
-        controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
         controls.keySpanSpeed = settings.camera.controls.pixelPerKeyPress;
         controls.zoomSpeed = settings.camera.controls.zoomSpeed;
         controls.screenSpacePanning = settings.camera.controls.screenSpacePanning;
@@ -919,6 +918,7 @@ vim3d.view = function (options) {
         if (settings.showGui) {
             // Create a new DAT.gui controller
             gui = new dat.GUI({ autoPlace: false, closeOnTop: true, scrollable: true });
+            gui.closed = !!settings.guiClosed;
             document.getElementById("datguicontainer").appendChild(gui.domElement);
             // Bind the properties to the DAT.gui controller, returning the scene when it updates
             bindControls(props, gui, function () {
@@ -1053,9 +1053,10 @@ vim3d.view = function (options) {
 
     // Use this when in full frame mode.
     function onWindowResize() {
-        var rect = renderer.domElement.getBoundingClientRect();
-        camera.aspect = rect.width / rect.height;
-        camera.updateProjectionMatrix();
+        // Code currently disabled; projection matrix update here breaks the view.
+        // var rect = renderer.domElement.getBoundingClientRect();
+        // camera.aspect = rect.width / rect.height;
+        // camera.updateProjectionMatrix();
     }
 
     function getEventMouseCoordinates(event) {
