@@ -54372,7 +54372,7 @@ THREE.OrbitControls = function (object, domElement) {
     this.enableKeys = true;
 
     // The four arrow keys
-    this.keys = { LEFT: 37, UP: 38, RIGHT: 39, BOTTOM: 40 };
+    this.keys = { LEFT: 65, RIGHT: 68, UP: 81, DOWN: 69, IN: 87, OUT: 83 };
 
     // Mouse buttons
     this.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
@@ -54877,7 +54877,17 @@ THREE.OrbitControls = function (object, domElement) {
                 needsUpdate = true;
                 break;
 
-        }
+            case scope.keys.IN:
+                dollyIn(getZoomScale());
+                needsUpdate = true; 
+                break;
+
+            case scope.keys.OUT:
+                dollyOut(getZoomScale());
+                needsUpdate = true;
+                break;
+    
+            }
 
         if (needsUpdate) {
 
