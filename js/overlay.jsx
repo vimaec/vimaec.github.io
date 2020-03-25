@@ -153,7 +153,7 @@ const _longPressTimer = 1500;
 function LongPressIndicator() {
     const [completed, setCompleted] = React.useState(0);
 
-    const interval = 50; // 16ms per frame (60fps)
+    const interval = 50; // 50ms between updates
     const maxProgress = 100;
     const deltaPerFrame = (interval / (_longPressTimer * 0.65)) * maxProgress;
 
@@ -183,17 +183,204 @@ function LongPressIndicator() {
     );
 }
 
+/**
+ * Point of interest
+ * @typedef {{ x: number, y: number, z: number }} StrippedVector3
+ * @typedef {{ x: number, y: number, z: number, w: number }} StrippedQuaternion
+ * @typedef {{
+ *     name: string,
+ *     position: StrippedVector3,
+ *     quaternion: StrippedQuaternion,
+ *     target: StrippedVector3
+ *  }} PointOfInterest
+ */
+
+ /** @returns {PointOfInterest} */
+function createPointOfInterest(name, camera, controls) {
+    const { position, quaternion } = camera;
+    const { target } = controls;
+    return {
+        name,
+        position: { x: position.x, y: position.y, z: position.z },
+        quaternion: { x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w },
+        target: { x: target.x, y: target.y, z: target.z },
+    };
+}
+
+const _defaultPointsOfInterest = [
+    {
+        name: "Front North West Corner",
+        position: {
+            x: -9.377683534029,
+            y: 2.285000347655562,
+            z: -10.301697684077448
+        },
+        quaternion: {
+            x: -0.011590015284415554,
+            y: 0.916829224571887,
+            z: -0.02668401968295786,
+            w: -0.3982182914058306
+        },
+        target: {
+            x: 1.5659834396902248,
+            y: 3.157401702405001,
+            z: -0.08039301957603485
+        }
+    },
+    {
+        name: "Main Entrance",
+        position: {
+            x: -9.983965657116938,
+            y: 2.1356461232801274,
+            z: 11.893624313249816
+        },
+        quaternion: {
+            x: 0.018712920011958446,
+            y: -0.7010617861704771,
+            z: 0.01840948116765151,
+            w: 0.7126172111303685
+        },
+        target: {
+            x: 4.993360335152902,
+            y: 2.9228861019069177,
+            z: 11.648758355367233
+        }
+    },
+    {
+        name: "Roof Mechanical Equipment",
+        position: {
+            x: -6.261961987258057,
+            y: 25.028539499770595,
+            z: -6.807631059709475
+        },
+        quaternion: {
+            x: 0.1599534056544322,
+            y: 0.8370229406527262,
+            z: 0.32910670894868366,
+            w: -0.4068123387577838
+        },
+        target: {
+            x: 2.3741236475656153,
+            y: 14.812312968990998,
+            z: -0.02185620492782353
+        }
+    },
+    {
+        name: "Parking Garage",
+        position: {
+            x: 28.58003314739422,
+            y: 1.7123825765557397,
+            z: 24.06627299975684
+        },
+        quaternion: {
+            x: -0.044144409571953994,
+            y: 0.17133671100407566,
+            z: 0.007685034974713913,
+            w: 0.9841930414320591
+        },
+        target: {
+            x: 23.53135872597716,
+            y: 0.36948209649485686,
+            z: 10.005422922781333
+        }
+    },
+    {
+        name: "Emergency Medical Rooms",
+        position: {
+            x: 29.70663877964936,
+            y: 3.6530114466426347,
+            z: 14.644072366936083
+        },
+        quaternion: {
+            x: -0.10027609925272922,
+            y: 0.5846664028130172,
+            z: 0.07312744148559931,
+            w: 0.8017245653228505
+        },
+        target: {
+            x: 15.864384287440338,
+            y: -0.04145766073647854,
+            z: 10.200775326725768
+        }
+    }
+];
+
 class PoiNavigator extends React.Component {
     constructor(props) {
         super(props);
+
+        this.state = {
+            poiList: _defaultPointsOfInterest,
+            poiIndex: 0,
+        };
+    }
+
+    storePointOfInterest() {
+        if (!vim3d) {
+            console.error("vim3d not detected.");
+            return;
+        }
+
+        const { poiList } = this.state;
+
+        const nextIndex = poiList.length;
+
+        const poi = createPointOfInterest(
+            `Point of Interest ${nextIndex}`,
+            vim3d.camera,
+            vim3d.controls);
+
+        this.setState({
+            ...this.state,
+            poiList: [...poiList, poi],
+            poiIndex: nextIndex,
+        });
+    }
+
+    nextPointOfInterest(increment) {
+        const { poiList, poiIndex } = this.state;
+        if (poiList.length === 0) {
+            return;
+        }
+
+        const nextIndex = (poiIndex + increment + poiList.length) % poiList.length;
+
+        this.setState({
+            ...this.state,
+            poiIndex: nextIndex,
+        });
+
+        this.applyPoi(poiList[nextIndex]);
+    }
+
+    applyPoi(poi) {
+        const { target, position, quaternion } = poi;
+        const { controls, camera } = vim3d;
+
+        controls.target.set(target.x, target.y, target.z);
+        camera.position.set(position.x, position.y, position.z);
+        camera.quaternion.set(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+    }
+
+    logPointsOfInterest() {
+        const { poiList } = this.state;
+        console.log(JSON.stringify(poiList, null, 4));
     }
 
     render() {
+        const { poiList, poiIndex } = this.state;
+        const hasPoi = poiList.length > 0;
+        const currentPoi = hasPoi ? poiList[poiIndex] : null;
+
         return (
             <div className="poi">
-                <i className="fas fa-chevron-left poi--btn"></i>
-                <div>Placeholder</div>
-                <i className="fas fa-chevron-right poi--btn"></i>
+                { hasPoi ? <i className="fas fa-chevron-left poi--btn" onClick={(evt) => this.nextPointOfInterest(-1)}></i> : null }
+                <div className="poi--name-container">
+                    {/* <i className="fas fa-camera poi--btn" onClick={(evt) => this.storePointOfInterest()}></i>
+                    <i className="fas fa-question poi--btn" onClick={(evt) => this.logPointsOfInterest()}></i> */}
+                    { currentPoi ? <div className="poi--name poi--btn" onClick={(evt) => this.nextPointOfInterest(0)}>{currentPoi.name}</div> : null }
+                </div>
+                { hasPoi ? <i className="fas fa-chevron-right poi--btn" onClick={(evt) => this.nextPointOfInterest(1)}></i> : null }
             </div>
         )
     }
@@ -379,10 +566,7 @@ class Overlay extends React.Component {
                     <div id="logo"/>
                 </div>
                 <BimDataPane />
-                { this.state.longPressInitiated
-                    ? <LongPressIndicator />
-                    : null
-                }
+                { this.state.longPressInitiated ? <LongPressIndicator /> : null }
                 <PoiNavigator/>
             </div>
         );

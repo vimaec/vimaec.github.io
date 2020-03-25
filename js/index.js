@@ -1024,6 +1024,8 @@ vim3d.view = function (options) {
         vim3d.objects = objects;
         vim3d.getEventMouseCoordinates = getEventMouseCoordinates;
         vim3d.getRayCastIntersections = getRayCastIntersections;
+        vim3d.camera = camera;
+        vim3d.controls = controls;
 
         vim3d.publishRallyCall = publishRallyCall;
     }
