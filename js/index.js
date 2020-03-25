@@ -1053,9 +1053,10 @@ vim3d.view = function (options) {
 
     // Use this when in full frame mode.
     function onWindowResize() {
-        var rect = renderer.domElement.getBoundingClientRect();
-        camera.aspect = rect.width / rect.height;
-        camera.updateProjectionMatrix();
+        // Code currently disabled; projection matrix update here breaks the view.
+        // var rect = renderer.domElement.getBoundingClientRect();
+        // camera.aspect = rect.width / rect.height;
+        // camera.updateProjectionMatrix();
     }
 
     function getEventMouseCoordinates(event) {
