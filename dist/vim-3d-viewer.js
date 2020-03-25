@@ -416,6 +416,7 @@ vim3d.view = function (options) {
         showStats: false,
         showGui: false,
         pubnub: false,
+        antiAlias: false,
         SSAO: {
             enable: true,
             kernelRadius: 16,
@@ -898,7 +899,7 @@ vim3d.view = function (options) {
             canvas = document.createElement('canvas');
             document.body.appendChild(canvas);
         }
-        renderer = new THREE.WebGLRenderer({ canvas: canvas });
+        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: settings.antiAlias });
         // Create the camera and size everything appropriately
         camera = new THREE.PerspectiveCamera();
         // Initialize the normalized moust position for ray-casting.
