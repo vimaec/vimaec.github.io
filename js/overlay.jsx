@@ -374,13 +374,23 @@ class PoiNavigator extends React.Component {
 
         return (
             <div className="poi">
-                { hasPoi ? <i className="fas fa-chevron-left poi--btn" onClick={(evt) => this.nextPointOfInterest(-1)}></i> : null }
+                {
+                    !hasPoi ? null :
+                    <div className="poi--btn poi--prev" onClick={(evt) => this.nextPointOfInterest(-1)}>
+                        <i className="fas fa-chevron-left"></i>
+                    </div>
+                }
                 <div className="poi--name-container">
                     {/* <i className="fas fa-camera poi--btn" onClick={(evt) => this.storePointOfInterest()}></i>
                     <i className="fas fa-question poi--btn" onClick={(evt) => this.logPointsOfInterest()}></i> */}
-                    { currentPoi ? <div className="poi--name poi--btn" onClick={(evt) => this.nextPointOfInterest(0)}>{currentPoi.name}</div> : null }
+                    { currentPoi ? <div className="poi--name" onClick={(evt) => this.nextPointOfInterest(0)}>{currentPoi.name}</div> : null }
                 </div>
-                { hasPoi ? <i className="fas fa-chevron-right poi--btn" onClick={(evt) => this.nextPointOfInterest(1)}></i> : null }
+                {
+                    !hasPoi ? null : 
+                    <div className="poi--btn poi--next" onClick={(evt) => this.nextPointOfInterest(1)}>
+                        <i className="fas fa-chevron-right poi--btn"></i>
+                    </div>
+                }
             </div>
         )
     }
