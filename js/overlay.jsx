@@ -99,11 +99,11 @@ class BimDataPane extends React.Component {
     }
 
     setBimData(title, family, type, parameters, count) {
-        this.setState((state) => ({ title, family, type, parameters: [...parameters], count }));
+        this.setState({...this.state, title, family, type, parameters: [...parameters], count });
     }
 
     display(enabled) {
-        this.setState((state) => ({ show: !!enabled }));
+        this.setState({...this.state, show: !!enabled });
     }
 
     render() {
@@ -271,10 +271,11 @@ class Overlay extends React.Component {
 
         const startClientLocation = this.getCursorClientLocation(evt);
         if (startClientLocation) {
-            this.setState((state) => ({
+            this.setState({
+                ...this.state,
                 longPressInitiated: true,
                 startClientLocation,
-            }));
+            });
             this._handleAbortLongPressReference = this.handleAbortLongPress.bind(this);
             document.addEventListener('mousemove', this._handleAbortLongPressReference);
             document.addEventListener('touchmove', this._handleAbortLongPressReference, { passive: false });
@@ -311,10 +312,11 @@ class Overlay extends React.Component {
             evt.preventDefault();
         }
 
-        this.setState((state) => ({
+        this.setState({
+            ...this.state,
             longPressInitiated: false,
             startClientLocation: null,
-        }));
+        });
 
         if (this._handleAbortLongPressReference) {
             document.removeEventListener('mousemove', this._handleAbortLongPressReference);
