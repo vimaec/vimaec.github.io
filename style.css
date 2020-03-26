@@ -3,6 +3,17 @@ html
     /* https://www.sitepoint.com/understanding-and-using-rem-units-in-css/ */
     font-size: 62.5% /* =10px - this affects the rem values used below. */
 }
+/* Fix for iphone  */
+@media  only screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2),
+        only screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3),
+        only screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)
+{
+    html
+    {
+        font-size: 100%;
+    }
+}
+
 body
 {
     padding: 0;
