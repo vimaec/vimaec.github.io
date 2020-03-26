@@ -1,11 +1,15 @@
+html
+{
+    /* https://www.sitepoint.com/understanding-and-using-rem-units-in-css/ */
+    font-size: 62.5% /* =10px - this affects the rem values used below. */
+}
 body
 {
     padding: 0;
     margin: 0;
     --common-text-shadow: 1px 1px 1px #00000026;
-    --nav-width: 150px;
-    --dat-gui-container-size: 250px;
-    --button-size: 100px;
+    --nav-width: 15rem;
+    --dat-gui-container-size: 25rem;
 }
 
 .scrollable-text
@@ -17,8 +21,8 @@ body
 
 .custom-scrollbar::-webkit-scrollbar
 {
-    width: 5px;
-    height: 5px;
+    width: .5rem;
+    height: .5rem;
     background: #1a1a1a3d;
 }
 .custom-scrollbar::-webkit-scrollbar-corner
@@ -28,7 +32,7 @@ body
 }
 .custom-scrollbar::-webkit-scrollbar-thumb
 {
-    border-radius: 5px;
+    border-radius: .5rem;
     background: #676767;
 }
 
@@ -81,7 +85,7 @@ body
 {
     display: grid;
     grid-template-columns: var(--nav-width) auto;
-    grid-template-rows: 1fr 80px;
+    grid-template-rows: 1fr 8rem;
     grid-template-areas:
         "nav bim"
         "nav poi";
@@ -107,9 +111,9 @@ body
 {
     background: transparent url('./img/VIM logo WHITE@2x.png') 0% 0% no-repeat;
     background-size: cover;
-    width: 56.3px;
-    height: 64px;
-    margin: 32 47;
+    width: 5.63rem;
+    height: 6.4rem;
+    margin-top: 3.2rem;
 }
 
 @media (max-width: 480px),
@@ -119,7 +123,7 @@ body
 {
     .overlay--root {
         grid-template-columns: 100%;
-        grid-template-rows: 60px 1fr 80px;
+        grid-template-rows: 6rem 1fr 8rem;
         grid-template-areas:
             "nav"
             "bim"
@@ -140,9 +144,9 @@ body
     {
         background: transparent url('img/VIM logo WHITE landscape.png') 0% 0% no-repeat padding-box;
         background-size: cover;
-        width: 63.91px;
-        height: 24px;
-        margin: 16px 25px 20px 25px;
+        width: 6.391rem;
+        height: 2.4rem;
+        margin: 0 0 0 2.5rem;
     }
 }
 
@@ -155,15 +159,15 @@ body
     align-self: auto;
     font-family: 'Roboto', sans-serif;
     display: grid;
-    --pane-width: 365px;
-    --pane-height: 438px;
+    --pane-width: 36.5rem;
+    --pane-height: 43.8rem;
     grid-template-columns: var(--pane-width);
     grid-template-rows: auto auto;
     grid-template-areas:
     "header"
     "body";
-    box-shadow: 5px 5px 14px #00000026;
-    border-radius: 8px 8px 0px 0px;
+    box-shadow: .5rem .5rem 1.4rem #00000026;
+    border-radius: .8rem .8rem 0 0;
     z-index: 10000;
     width: var(--pane-width);
     height: var(--pane-height);
@@ -177,7 +181,7 @@ body
     {
         justify-self: center;
         align-self: center;
-        margin: auto 0px 0px 0px;
+        margin: auto 0 0 0;
     }
 }
 
@@ -185,19 +189,18 @@ body
 {
     grid-area: header;
     color: white;
-    border-radius: 8px 8px 0px 0px;
+    border-radius: .8rem .8rem 0 0;
     background: #3F433D 0% 0% no-repeat padding-box;
     padding: 25px;
     display: grid;
-    grid-template-columns: auto auto 25px;
-    /* grid-template-rows: 28px 17px 11px 21px; */
-    grid-template-rows: auto 17px auto auto;
+    grid-template-columns: auto auto 2.5rem;
+    grid-template-rows: auto 1.7rem auto auto;
     grid-template-areas:
     "title        title       close"
     ".            .           ."
     "label-family label-type  ."
     "value-family value-type  .";
-    grid-column-gap: 10px;
+    grid-column-gap: 1rem;
     align-items: baseline;
 }
 
@@ -205,8 +208,8 @@ body
 {
     grid-area: title;
     text-align: left;
-    font-size: 28px;
-    letter-spacing: -0.48px;
+    font-size: 2.8rem;
+    letter-spacing: -.048rem;
     text-shadow: var(--common-text-shadow);
     width: 100%;
     height: 100%;
@@ -217,15 +220,15 @@ body
 {
     grid-area: close;
     justify-self: right;
-    font-size: 1.5rem;
+    font-size: 2.5rem;
     cursor: pointer;
     z-index: 1000;
 }
 
 .bdc--label
 {
-    font-size: 11px;
-    letter-spacing: -0.2px;
+    font-size: 1.1rem;
+    letter-spacing: -.02rem;
     opacity: 0.4;
     align-self: end;
 }
@@ -236,8 +239,8 @@ body
 
 .bdc--value
 {
-    font-size: 21px;
-    letter-spacing: -0.36px;
+    font-size: 2.1rem;
+    letter-spacing: -.036rem;
     text-shadow: var(--common-text-shadow);
     align-self: end;
 }
@@ -250,67 +253,39 @@ body
     grid-area: body;
     background: #ffffff 0% 0% no-repeat padding-box;
     opacity: 1;
-    margin: 10px;
-    padding: 15px;
+    margin: 1rem;
+    padding: 1.5rem;
     overflow: auto;
 }
 
 .bdc--body__subtitle
 {
-    font-size: 18px;
+    font-size: 1.8rem;
     color: #2AAAE2;
-    margin-bottom: 20px;
+    margin-bottom: 2rem;
 }
 
 .bdc--body__value-region
 {
     background: rgba(63, 67, 61, 0.1) 0% 0% no-repeat padding-box;
-    border-radius: 4px;
-    /* opacity: 0.1; */
-    padding: 10px 15px
+    border-radius: .4rem;
+    padding: 1rem 1.5rem
 }
 
 .bdc--body__value
 {
-    font-size: 14px;
+    font-size: 1.4rem;
     color: #3F433D;
-    margin-bottom: 10px;
+    margin-bottom: 1rem;
 }
-.bdc--body__value:last-of-type { margin-bottom:0px; }
-
-.bdp--container
-{
-    justify-self: flex-end;
-    align-self: flex-end;
-    margin: 1rem;
-    z-index: 10000;
-}
-
-.bdp--btn
-{
-    background: transparent linear-gradient(148deg, #0590CC 0%, #8DC95B 100%) 0% 0% no-repeat padding-box;
-    box-shadow: 5px 5px 14px #0000002E;
-    border-radius: 50%;
-    width: var(--button-size);
-    height: var(--button-size);
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    font-size: 3rem;
-    font-weight: normal;
-    cursor: pointer;
-    text-shadow: var(--common-text-shadow);
-}
+.bdc--body__value:last-of-type { margin-bottom:0; }
 
 .bdp--linear-progress-container
 {
     grid-area: bim;
     width: 100%;
-    height: 10px;
+    height: 1rem;
 }
-
 .bdp--progress
 {
     background-color: transparent !important;
@@ -325,17 +300,17 @@ body
 {
     grid-area: poi;
     background-color: #ffffff;
-    box-shadow: 5px 5px 20px #0000004D;
-    border-radius: 30px;
+    box-shadow: .5rem .5rem 2rem #0000004D;
+    border-radius: 3rem;
     color: #0590CC;
     justify-self: center;
     align-self: center;
     font-family: 'Roboto', sans-serif;
     font-weight: bold;
-    font-size: 15px;
+    font-size: 1.5rem;
     display: grid; 
-    grid-template-columns: 60px 215px 60px;
-    grid-template-rows: 60px;
+    grid-template-columns: 6rem 21.5rem 6rem;
+    grid-template-rows: 6rem;
     grid-template-areas: "prev name next";
     align-items: center;
     z-index: 10000;
@@ -354,8 +329,8 @@ body
     cursor: pointer;
 }
 .poi--btn {
-    width: 60px;
-    height: 60px;
+    width: 6rem;
+    height: 6rem;
     display: flex;
     justify-content: center;
     align-items: center;
