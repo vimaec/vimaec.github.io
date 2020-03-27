@@ -405,7 +405,7 @@ vim3d.view = function (options) {
     var stats, gui, controls;
     var camera, cameraTarget, scene, renderer, material, plane, sunlight, light1, light2, settings, mouse;
     var ssaoPass, composer;
-
+    var lastMessage;
     var materialsLoaded = false;
     var objects = [];
 
@@ -413,10 +413,18 @@ vim3d.view = function (options) {
     //const material = new THREE.MeshPhongMaterial( { color: 0xff5533, specular: 0x111111, shininess: 200 } );
     // Default options object (merged with passed options)
     var defaultOptions = {
-        showStats: false,
-        showGui: false,
-        pubnub: false,
-        antiAlias: false,
+        // These settings are only work during initialization 
+        init: {
+            showStats: false,
+            showGui: false,
+            antiAlias: false,
+            pubnub: true,
+        },
+        pubnub: {
+            leader: false,
+            freeAgent: false,
+            cursor: true,
+        }, 
         SSAO: {
             enable: true,
             kernelRadius: 16,
@@ -484,10 +492,7 @@ vim3d.view = function (options) {
             scale: 0.01,
             position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },
-            categories: {
-
-            },
-        }
+        },
     };
 
     // Get the raycaster extension functions from MeshBVHLib (https://github.com/gkjohnson/three-mesh-bvh)
@@ -697,6 +702,18 @@ vim3d.view = function (options) {
             delete cursors[uuid];
         }
     }
+    
+    function onCategoryChanged() {
+        // Only a leader can trigger a category changed event
+        if (!settings.pubnub.leader)
+            return; 
+        const categories = { };
+        for (const obj of objects)
+            categories[obj.name] = obj.visible;                    
+        console.log("Category changed");
+        publish({categories});
+        console.log(categories);
+    }
 
     function onMessage(uuid, message) {
         // We never care about our own messages
@@ -705,14 +722,25 @@ vim3d.view = function (options) {
 
         const { camera, cursor } = message;
         if (camera != null)
-            onUpdateAvatar(uuid, camera, cursor)
+            onUpdateAvatarMessage(uuid, camera, cursor)
 
         const { rallyCall } = message;
-        if (rallyCall != null)
-            onRallyCall(rallyCall)
+        if (rallyCall != null && !settings.pubnub.freeAgent)
+            onRallyCallMessage(rallyCall);
+
+        const { categories } = message;
+        if (categories != null && !settings.pubnub.freeAgent)
+            onCategoryChangedMessage(categories);
     }
 
-    function onUpdateAvatar(uuid, avatarXfo, cursorXfo) {
+    function onCategoryChangedMessage(categories) {
+        for (let k in categories) {
+            const obj = scene.getObjectByName(k);
+            obj.visible = categories[k];  
+        }
+    }
+
+    function onUpdateAvatarMessage(uuid, avatarXfo, cursorXfo) {
         loadAvatar(uuid);
         var avatar = avatars[uuid];
         if (avatar) {
@@ -733,7 +761,7 @@ vim3d.view = function (options) {
     var cameraForward = new THREE.Vector3();
     var targetQuat = new THREE.Quaternion();
 
-    function onRallyCall(rallyCall) {
+    function onRallyCallMessage(rallyCall) {
 
         // We set the camera xfo
         const { rallyPoint, viewDirection, viewDistance } = rallyCall;
@@ -743,20 +771,7 @@ vim3d.view = function (options) {
         setVector(eyePoint, rallyPoint);
         setVector(cameraForward, viewDirection)
         controls.target.copy(eyePoint);
-        controls.target.addScaledVector(cameraForward, viewDistance || 10);
-
-        // Our offset moves us backwards from the rallyPoint but still facing towards it
-        // var zOffset = camera.getWorldDirection(cameraForward)
-        //     .multiplyScalar(-viewDistance);
-        // If our offset is not in the same direction as the viewDirection, then 
-        // we negate the offset X/Z values to flip us around
-        // This is a very cheap way to put everyone in the same hemipshere
-        // (note: this is GT because our offset is the inverse of the direction we actually face)
-        // if (zOffset.dot(viewDirection) > 0) {
-        //     zOffset.x *= -1;
-        //     zOffset.z *= -1;
-        // }
-        //targetPosition.add(zOffset);
+        controls.target.addScaledVector(cameraForward, viewDistance || 10);        
         vectorTween(camera.position, eyePoint);
 
         // Now rotate to look at rally point.  This theoretically should be a no-op
@@ -783,8 +798,6 @@ vim3d.view = function (options) {
     }
 
     function vectorTween(start, end, time) {
-        //var cameraTween = {  t: 0 };
-        //originalRotation = start.clone();
         createjs.Tween.get(start)
             .to(stripVector(end), tweenTime, createjs.Ease.quadInOut)
             .on("change", (tween) => {
@@ -792,62 +805,80 @@ vim3d.view = function (options) {
             });
     }
 
-    function publishCameraXfo() {
+    function compareNumbers(a, b) {
+        return Math.round(a * 1000) == Math.round(b * 1000);
+    }
 
-        var cursor = null;
-        if (intersections.length > 0) {
-            cursor = {
-                position: stripVector(intersections[0].point),
-                faceIndex: intersections[0].faceIndex,
-                distance: intersections[0].distance
-            };
+    function compareObjects(a, b) {
+        if (typeof(b) !== 'object')
+            return false;
+        for (var k in a) {
+            var v1 = a[k];
+            var v2 = b[k];
+            if (v2 === undefined)
+                return false;
+            if (typeof(v1) == 'number') {
+                if (!compareNumbers(v1, v2))
+                    return false;
+            }
+            else if (typeof(v1) == 'object') {
+                if (!compareObjects(v1, v2))
+                    return false;
+            }
+            else if (v1 !== v2) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    function publishCameraXfo() {
         var message = {
-            cursor: cursor,
             camera: {
                 position: stripVector(camera.position),
                 rotation: stripQuaternion(camera.quaternion)
             }
         }
+        
+        if (settings.pubnub.cursor && settings.cursor.show && intersections.length > 0) {
+            message.cursor = {
+                position: stripVector(intersections[0].point),
+                faceIndex: intersections[0].faceIndex,
+                distance: intersections[0].distance
+            };
+        }
+
         publish(message);
     }
 
     function publishRallyCall() {
-        // If we are pointing at something rally to there
-        var rallyPoint;
-        var viewDirection;
         var viewDistance = 10;
         if (intersections.length > 0) {
             const { point } = intersections[0]
-
-        //     // The hitpoint is what we are looking at
-        //     rallyPoint = point.clone();
-
-        //     // Indicate the direction/distance we are looking towards the rally point
             const cameraToPoint = point.clone().sub(camera.position);
             viewDistance = cameraToPoint.length();
-        //     viewDirection = cameraToPoint.multiplyScalar(1.0 / viewDistance);
-        //     viewDistance = viewDistance * 0.8;
         }
-        //else {
-            rallyPoint = camera.position;
-            viewDirection = camera.getWorldDirection(cameraForward);
-            // We want the users to appear in front of us, looking at us
-            //viewDirection.multiplyScalar(-1);
-        //}
         publish({
             rallyCall: {
-                rallyPoint,
-                viewDirection,
+                rallyPoint: camera.position,
+                viewDirection: camera.getWorldDirection(cameraForward),
                 viewDistance
             }
         })
-        // else
     }
 
     function publish(message) {
-        if (!pubnub)
+        if (!pubnub || !settings.init.pubnub)
             return;
+
+        if (compareObjects(message, lastMessage)) 
+        {
+            console.log("Message unchanged");
+            return;
+        }
+        console.log("Publishing message");
+
+        lastMessage = message;
 
         // https://stackoverflow.com/questions/54433325/unhandled-promise-exception
         pubnub.publish({
@@ -856,15 +887,13 @@ vim3d.view = function (options) {
         }).catch(error => console.log(error));
     }
 
-
-
     function getMaterial(uuid) {
         var mtl = materials[uuid]
-        if (!mtl) {
+        if (!mtl) 
             materials[uuid] = mtl = new THREE.MeshPhongMaterial({ color: uuidToColor(uuid), opacity: 0.6, transparent: true })
-        }
         return mtl
     }
+
     function createCursorMesh(uuid) {
         var material = getMaterial(uuid);
         var c = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(0.5), material);
@@ -889,8 +918,10 @@ vim3d.view = function (options) {
 
         // Initialize the settings
         settings = (new DeepMerge()).deepMerge(defaultOptions, options, undefined);
-        myUUID = getMyUuid();
-            
+        
+        // TODO: was myUUID = getMyUuid();
+        myUUID = PubNub.generateUUID(); 
+
         // If a canvas is given, we will draw in it.
         var canvas = document.getElementById(settings.canvasId);
         if (!canvas) {
@@ -898,7 +929,7 @@ vim3d.view = function (options) {
             canvas = document.createElement('canvas');
             document.body.appendChild(canvas);
         }
-        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: settings.antiAlias });
+        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: settings.init.antiAlias });
         // Create the camera and size everything appropriately
         camera = new THREE.PerspectiveCamera();
         // Initialize the normalized moust position for ray-casting.
@@ -916,7 +947,7 @@ vim3d.view = function (options) {
         var props = new PropList(propDesc);
         // Iniitlaize the property list values
         props.fromJson(options);
-        if (settings.showGui) {
+        if (settings.init.showGui) {
             // Create a new DAT.gui controller
             gui = new dat.GUI({ autoPlace: false, closeOnTop: true, scrollable: true });
             gui.closed = !!settings.guiClosed;
@@ -978,7 +1009,7 @@ vim3d.view = function (options) {
         updateCameraControls();
 
         // Stats display
-        if (settings.showStats) {
+        if (settings.init.showStats) {
             stats = new Stats();
             document.body.appendChild(stats.dom);
         }
@@ -993,11 +1024,12 @@ vim3d.view = function (options) {
         initCamera();
 
         // Set-up pubnub
-        if (settings.pubnub) {
+        if (settings.init.pubnub) {
             pubnub = new PubNub({
                 publishKey: "pub-c-21488fa4-ced8-47af-af29-e12e448d13fe",
                 subscribeKey: "sub-c-97dcb2d0-6d22-11ea-94ed-e20534093ea4",
-                uuid: myUUID
+                uuid: myUUID,
+                heartbeatInterval: 10,
             });
             pubnub.addListener({
                 message: function (m) {
@@ -1029,7 +1061,9 @@ vim3d.view = function (options) {
         vim3d.controls = controls;
 
         vim3d.publishRallyCall = publishRallyCall;
+        vim3d.onCategoryChanged = onCategoryChanged;
     }
+    
 
     function loadFromSettings(url, mtlurl) {
         if (Array.isArray(url)) {
@@ -1112,6 +1146,7 @@ vim3d.view = function (options) {
         camera.aspect = canvas.width / canvas.height;
         camera.updateProjectionMatrix();
     }
+
     function outputStats(obj) {
         console.log("Object id = " + obj.uuid + " name = " + obj.name);
         if (obj.isBufferGeometry) {
@@ -1137,6 +1172,7 @@ vim3d.view = function (options) {
             console.log("Is neither a Geometry nor a BufferGeometry");
         }
     }
+    
     function loadObject(callback) {
         return (obj) => {
             objects.push(obj);
@@ -1249,16 +1285,16 @@ vim3d.view = function (options) {
             default:
                 {
                     var loader = new THREE.G3DLoader();
+
                     loader.load(fileName, function (geometry) {
                         if (settings.loader.computeVertexNormals)
                             geometry.computeVertexNormals();
                         var mesh = new THREE.Mesh(geometry);
                         var name = fileName.substring(fileName.lastIndexOf('/') + 1);
                         name = name.slice(0, -4);
-                        mesh.name = decodeURIComponent(name);
-                        // Add to the display
-                        gui.add(mesh, 'visible').name(mesh.name || ('Mesh' + objects.length));
-                        settings.object.categories[name] = true;
+                        mesh.name = decodeURIComponent(name) || ('Mesh' + objects.length)
+                        if (gui)
+                            gui.add(mesh, 'visible').name(mesh.name).onChange(onCategoryChanged).listen();
                         loadObject(callback)(mesh);
                     }, null, console.error);
                     return;
@@ -1390,17 +1426,20 @@ vim3d.isolate = function (name) {
             obj.visible = true;
         else
             obj.visible = false;
+    vim3d.onCategoryChanged();
 }
 
 vim3d.setVis = function (name, vis) {
     for (var obj of vim3d.objects)
         if (obj.name == name)
             obj.visible = vis;
+    vim3d.onCategoryChanged();
 }
 
 vim3d.setVisAll = function (vis) {
     for (var obj of vim3d.objects)
         obj.visible = vis;
+    vim3d.onCategoryChanged();
 }
 
 // Helper functions
@@ -1431,6 +1470,7 @@ function uuidToColor(uuid) {
     return colors[uuidColorIndex];
 }
 
+/*
 function getMyUuid() {
     // Lets try and keep a constant UUID (for billing reasons, and
     // also when someone re-connects, they can resume their previous avatar)
@@ -1441,6 +1481,7 @@ function getMyUuid() {
     }
     return uuid;
 }
+*/
 
 function toVec(obj) {
     return new THREE.Vector3(obj.x, obj.y, obj.z);
