@@ -495,6 +495,7 @@ vim3d.view = function (options) {
         },
     };
 
+    // TODO:
     // Get the raycaster extension functions from MeshBVHLib (https://github.com/gkjohnson/three-mesh-bvh)
     THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -840,7 +841,7 @@ vim3d.view = function (options) {
             }
         }
         
-        if (settings.pubnub.cursor && settings.cursor.show && intersections.length > 0) {
+        if (settings.pubnub.cursor && settings.cursor.show && intersections && intersections.length > 0) {
             message.cursor = {
                 position: stripVector(intersections[0].point),
                 faceIndex: intersections[0].faceIndex,
@@ -853,7 +854,7 @@ vim3d.view = function (options) {
 
     function publishRallyCall() {
         var viewDistance = 10;
-        if (intersections.length > 0) {
+        if (intersections && intersections.length > 0) {
             const { point } = intersections[0]
             const cameraToPoint = point.clone().sub(camera.position);
             viewDistance = cameraToPoint.length();
@@ -872,12 +873,9 @@ vim3d.view = function (options) {
             return;
 
         if (compareObjects(message, lastMessage)) 
-        {
-            console.log("Message unchanged");
             return;
-        }
-        console.log("Publishing message");
 
+        console.log("Publishing message");
         lastMessage = message;
 
         // https://stackoverflow.com/questions/54433325/unhandled-promise-exception
@@ -941,6 +939,7 @@ vim3d.view = function (options) {
         // Used for hit-testing (see https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_cubes.html)
         rayCaster = new THREE.Raycaster();
         rayCaster.firstHitOnly = true;
+        
         // Create a property descriptor
         var propDesc = getOptionsDescriptor();
         // Create a property list from the descriptor

@@ -48,16 +48,20 @@ class BimDataConverter {
             distance,
             point,
             face,
-            faceIndex: raycastFaceIndex,
+            faceIndex,
             object: meshObject,
             uv,
             uv2,
             instanceId } = intersection;
 
+        const raycastFaceIndex = faceIndex;
+
         // De-reference the element properties based on the given mesh object and intersected face.
         const faceGroupIds = meshObject.geometry.getAttribute("facegroupids").array;
-        const elementId = this.bimData.FaceToElementId[faceGroupIds[raycastFaceIndex]];
-        const rawElementProperties = this.bimData.ElementToProperties[elementId];
+        const faceGroupId = faceGroupIds[raycastFaceIndex];
+        const elementId = this.bimData.FaceToElementId[faceGroupId];
+        //const elementId = 2746304;
+        const rawElementProperties = this.bimData.ElementToProperties[elementId.toString()];        
 
         // Populate the element information to return.
         const propertySet = new Set();
@@ -74,7 +78,7 @@ class BimDataConverter {
         const properties = [...propertySet];
         properties.sort();
 
-        const [name, familyName, type] = this.bimData.ElementToFamilyInfo[elementId];
+        const [name, familyName, type] = this.bimData.ElementToFamilyInfo[elementId.toString()];
 
         return {
             name, familyName, type, properties,

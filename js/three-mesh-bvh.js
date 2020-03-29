@@ -1766,9 +1766,7 @@
 			}
 
 			var normal = new THREE.Vector3();
-			intersection.face = new THREE.Face3( a, b, c, THREE.Triangle.getNormal( vA, vB, vC, normal ) );
-			intersection.faceIndex = a;
-
+			intersection.face = new THREE.Face3( a, b, c, THREE.Triangle.getNormal( vA, vB, vC, normal ) );			
 		}
 
 		return intersection;
@@ -1785,26 +1783,23 @@
 
 		const intersection = checkBufferGeometryIntersection( mesh, raycaster, ray, geo.attributes.position, geo.attributes.uv, a, b, c );
 
-		if ( intersection ) {
-
-			intersection.faceIndex = tri;
-			if ( intersections ) intersections.push( intersection );
-			return intersection;
-
-		}
-
-		return null;
-
+		if ( !intersection )
+			return null; 
+		
+		const f1 = geo.vtxToFace[a];
+		const f2 = geo.vtxToFace[b];		
+		const f3 = geo.vtxToFace[c];		
+		const f = (f1 == f2 || f1 == f3 || f2 != f3) ? f1 : f2;  
+		intersection.faceIndex = f;
+		if ( intersections ) 
+			intersections.push( intersection );
+		return intersection;
 	}
 
 	function intersectTris( mesh, geo, raycaster, ray, offset, count, intersections ) {
-
 		for ( let i = offset, end = offset + count; i < end; i ++ ) {
-
 			intersectTri( mesh, geo, raycaster, ray, i, intersections );
-
 		}
-
 	}
 
 	function intersectClosestTri( mesh, geo, raycaster, ray, offset, count ) {
@@ -1812,17 +1807,12 @@
 		let dist = Infinity;
 		let res = null;
 		for ( let i = offset, end = offset + count; i < end; i ++ ) {
-
 			const intersection = intersectTri( mesh, geo, raycaster, ray, i );
 			if ( intersection && intersection.distance < dist ) {
-
 				res = intersection;
 				dist = intersection.distance;
-
 			}
-
 		}
-
 		return res;
 
 	}
@@ -1842,28 +1832,19 @@
 	function raycast( node, mesh, raycaster, ray, intersects ) {
 
 		if ( node.continueGeneration ) {
-
 			node.continueGeneration();
-
 		}
 
 		const isLeaf = ! ! node.count;
 		if ( isLeaf ) {
-
 			intersectTris( mesh, mesh.geometry, raycaster, ray, node.offset, node.count, intersects );
-
 		} else {
-
 			if ( intersectRay( node.left, ray, boxIntersection ) ) {
-
 				raycast( node.left, mesh, raycaster, ray, intersects );
-
 			}
 
 			if ( intersectRay( node.right, ray, boxIntersection ) ) {
-
 				raycast( node.right, mesh, raycaster, ray, intersects );
-
 			}
 
 		}
@@ -2389,8 +2370,6 @@
 					shapecastBuffer( c1, mesh, intersectsBoundsFunc, intersectsTriangleFunc, nodeScoreFunc );
 
 				if ( c1Intersection ) return true;
-
-
 				if ( ! box2 ) {
 
 					box2 = cachedBox2;
@@ -3503,6 +3482,12 @@
 
 	function computeBoundsTree( options ) {
 
+		this.vtxToFace = {};
+		let idx = 0;
+		for (let vtxIdx of this.index.array)
+		{
+			this.vtxToFace[vtxIdx] = Math.floor(idx++ / 3);
+		}
 		this.boundsTree = new MeshBVH( this, options );
 		return this.boundsTree;
 
