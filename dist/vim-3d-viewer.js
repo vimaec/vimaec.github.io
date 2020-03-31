@@ -336,9 +336,8 @@ function throttle(func, wait, options) {
 // END: Deepmerge
 
 var vertexShader = `
-    precision mediump float;
-    precision mediump int;
-
+    precision highp float;
+    
     uniform mat4 modelViewMatrix; // optional
     uniform mat4 projectionMatrix; // optional
     uniform mat3 normalMatrix;
@@ -367,7 +366,11 @@ var vertexShader = `
 `;
 
 var fragmentShader = `
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
     precision mediump float;
+    #endif
     precision mediump int;
 
     varying vec4 vColor;
@@ -419,6 +422,7 @@ vim3d.view = function (options) {
             showGui: false,
             antiAlias: false,
             pubnub: true,
+            logarithmicDepthBuffer: true,
         },
         pubnub: {
             leader: false,
@@ -435,8 +439,8 @@ vim3d.view = function (options) {
             computeVertexNormals: true,
         },
         camera: {
-            near: 0.001,
-            far: 1,
+            near: 1,
+            far: 1000,
             fov: 50,
             zoom: 1,
             position: { x: 0, y: 5, z: -5 },
@@ -927,7 +931,7 @@ vim3d.view = function (options) {
             canvas = document.createElement('canvas');
             document.body.appendChild(canvas);
         }
-        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: settings.init.antiAlias });
+        renderer = new THREE.WebGLRenderer({ canvas: canvas, logarithmicDepthBuffer: settings.init.logarithmicDepthBuffer, antialias: settings.init.antiAlias });
         // Create the camera and size everything appropriately
         camera = new THREE.PerspectiveCamera();
         // Initialize the normalized moust position for ray-casting.
@@ -939,7 +943,7 @@ vim3d.view = function (options) {
         // Used for hit-testing (see https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_cubes.html)
         rayCaster = new THREE.Raycaster();
         rayCaster.firstHitOnly = true;
-        
+
         // Create a property descriptor
         var propDesc = getOptionsDescriptor();
         // Create a property list from the descriptor
