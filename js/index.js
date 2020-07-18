@@ -1029,8 +1029,8 @@ vim3d.view = function (options) {
         // Set-up pubnub
         if (settings.init.pubnub) {
             pubnub = new PubNub({
-                publishKey: "pub-c-21488fa4-ced8-47af-af29-e12e448d13fe",
-                subscribeKey: "sub-c-97dcb2d0-6d22-11ea-94ed-e20534093ea4",
+                publishKey: "pub-c-9040779e-dab0-433e-8e4a-0ae257c749d6",
+                subscribeKey: "sub-c-54ba20f0-75c4-11ea-9e80-76ec259d9e4f",
                 uuid: myUUID,
                 heartbeatInterval: 10,
             });
